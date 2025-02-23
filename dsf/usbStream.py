@@ -21,9 +21,6 @@ import subprocess
 
 streamVersion = '0.0.1'
 
-## Added some extra try clauses and some time.sleep to prevent runaway blocking situations
-
-
 def init():
     # parse command line arguments
     parser = argparse.ArgumentParser(
@@ -39,14 +36,13 @@ def init():
     parser.add_argument('-size', type=int, nargs=1, default=[0], help='image resolution')
     parser.add_argument('-format', type=str, nargs=1, default=['MJPG'], help='Preferred format')
     parser.add_argument('-framerate', type=int, nargs=1, default=[24], help='Frame rate')
-    parser.add_argument('-pires', type=str, nargs=1, default=[''], help='pires commands for libcamera-vid')
-    parser.add_argument('-pistream', type=str, nargs=1, default=['tcp://0.0.0.0:5000'], help='Output stream. Default = tcp://0.0.0.0:5000') 
-    parser.add_argument('-debug', action='store_true', help='If omitted - limit debug messages ')
+    parser.add_argument('-verbose', action='store_true', help='If omitted - limit debug messages ')
+    parser.add_argument('-#', type=str, nargs=1, default=[''], help='Comment')
 
     args = vars(parser.parse_args())
 
     global host, port, rotate, camera, size, format, framerate, allowed_formats
-    global pires, rotateimage, debug, pistream
+    global rotateimage, verbose
     
     host = args['host'][0]
     port = args['port'][0]
@@ -60,31 +56,13 @@ def init():
         print(format + 'is not an allowed format')
         format = 'MJPG'
         print('Setting to ' + format)
-    pires = args['pires'][0]
-    pistream = args['pistream'][0]
     rotateimage = args['rotate'][0]
     if rotateimage not in (0,90,180,270):
         rotateimage = 0
-    if args['debug']:
-        debug = ''
+    if args['verbose']:
+        verbose = ''
     else:
-        debug = ' 2>/dev/null'
-
-    if pires != '':
-        #Check if libcamera-vid is already in-use
-        cmd = ['pgrep', '-f', 'libcamera-vid']
-        try:
-            # exit code is zero if found
-            result = subprocess.check_call(cmd)
-            print(result)
-            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            print('libcamera-vid is already in use.')
-            print('Can be killed with kill -9 `pgrep -f libcamera-vid`')
-            print('Exiting')
-            print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            sys.exit(0)
-        except subprocess.CalledProcessError as e:
-            pass
+        verbose = ' 2>/dev/null'
 
                 
 class VideoStream:
@@ -142,31 +120,6 @@ class VideoStream:
     def stop(self):
         # indicate that the thread should be stopped
         self.stopped = True
-
-def startPicam(cam, res, frate):
-    libcamera = 'libcamera-vid '        
-    cmdtxt = []
-    cmdtxt.append(libcamera + '-t 0')
-    cmdtxt.append(' --nopreview --inline  --listen ')
-    cmdtxt.append(res)
-    cmdtxt.append(' --framerate ' + str(framerate))
-    cmdtxt.append(' --camera ' + str(cam))
-    cmdtxt.append(' -o ' + pistream)
-    if debug != '':
-        cmdtxt.append(debug)
-    cmd = ''.join(cmdtxt)
-
-    print('\nStarting camera with this command\n')    
-    print(cmd)
-    try:
-        subprocess.Popen(cmd, shell=True, start_new_session=True)  # run the program
-    except Exception as e:
-        print('Problem starting ' + libcamera)
-        print(e)
-    #Wait for the camera to initialize    
-    delay = 10
-    print('\nWait ' + str(delay) + ' sec for libcamera-vid to start')
-    time.sleep(delay)
 
 def getFrame():
     # stream and rotate are globals
@@ -418,14 +371,8 @@ if __name__ == "__main__":
     thisinstancepid = os.getpid()
 
     init()
-    if pires != '':
-        if camera == '':
-            camera = '0'
-        startPicam(camera, pires, framerate)
-        stream = VideoStream(pistream)
-    else:
-        camera, res = opencvsetup(camera) # May change camera number
-        stream = VideoStream(int(camera), res, framerate)
+    camera, res = opencvsetup(camera) # May change camera number
+    stream = VideoStream(int(camera), res, framerate)
 
     checkIP() # Check the IP and Port for http server
     
