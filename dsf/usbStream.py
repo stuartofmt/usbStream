@@ -370,6 +370,16 @@ def opencvsetup(camera):
 def createLogger():
     ##### Create a custom logger #####
     global logger
+    logfilename = '../../logfile'
+    # Set log level
+    try:
+        if verbose:
+            logging.basicConfig(level = logging.DEBUG)
+        else:
+            logging.basicConfig(level = logging.INFO)
+    except NameError:
+        pass 
+
     logger = logging.getLogger(__name__)
     logger.propagate = False
 
@@ -379,9 +389,10 @@ def createLogger():
     c_format = logging.Formatter(' %(threadName)s - %(message)s')
     c_handler.setFormatter(c_format)
     logger.addHandler(c_handler)
-    logfilename = '../../logfile'
+
     filehandler = None
     for handler in logger.handlers:
+        print(handler.__class__.__name__)
         if handler.__class__.__name__ == "FileHandler":
             filehandler = handler
 
@@ -396,13 +407,7 @@ def createLogger():
     f_handler.setFormatter(f_format)
     logger.addHandler(f_handler) 
 
-    try:
-        if val:
-            logger.setLevel(logging.DEBUG)
-        else:
-            logger.setLevel(logging.INFO)
-    except NameError:
-        pass  
+
 
 def shut_down():
     #  global streaming
