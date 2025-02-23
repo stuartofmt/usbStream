@@ -54,9 +54,9 @@ def init():
     framerate = abs(args['framerate'][0])
     allowed_formats = ('BGR3', 'YUY2', 'MJPG','JPEG', 'H264', 'IYUV')
     if format not in allowed_formats:
-        print(format + 'is not an allowed format')
+        logger.info(format + 'is not an allowed format')
         format = 'MJPG'
-        print('Setting to ' + format)
+        logger.info('Setting to ' + format)
     rotateimage = args['rotate'][0]
     if rotateimage not in (0,90,180,270):
         rotateimage = 0
@@ -81,8 +81,8 @@ class VideoStream:
                 self.stream.set(cv2.CAP_PROP_FOURCC, fourcc)
                 self.stream.set(cv2.CAP_PROP_FPS, frate)
             except Exception as e:
-                print('opencv error')
-                print(e)
+                logger.info('opencv error')
+                logger.info(e)
 
             self.grabbed, self.frame = self.stream.read()
 
@@ -110,8 +110,8 @@ class VideoStream:
             try:
                 self.grabbed, self.frame = self.stream.read()
             except Exception as e:
-                print('problem updating camera')
-                print(e)
+                logger.info('problem updating camera')
+                logger.info(e)
                 time.sleep(1)    
 
     def read(self):
@@ -130,12 +130,12 @@ def getFrame():
         try:
             ret, buffer = stream.read()
         except Exception as e:
-            print('There was an error reading from the camera')
-            print(e)
+            logger.info('There was an error reading from the camera')
+            logger.info(e)
             continue
         
         if ret is False or ret is None:
-            print('\n Empty Frame Detected')
+            logger.info('\n Empty Frame Detected')
             continue  # we do not want to update frame
         else:
             if rotate != '0':
@@ -155,7 +155,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
         if 'favicon.ico' in self.path:
             return
         if self.path == '/stream':
-            print('\nStreaming started')
+            logger.info('\nStreaming started')
             self.send_response(200)
             self.send_header('Age', '0')
             self.send_header('Cache-Control', 'no-cache, private')
@@ -173,10 +173,10 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                         self.wfile.write(frame)
                         self.wfile.write(b'\r\n')
                     except Exception as e:
-                        print('\nClient Disconnected with message ' + str(e))
+                        logger.info('\nClient Disconnected with message ' + str(e))
                         break
             except Exception as e:
-                print('\nRemoved client from ' + str(self.client_address) + ' with message ' + str(e))
+                logger.info('\nRemoved client from ' + str(self.client_address) + ' with message ' + str(e))
         elif self.path == '/terminate':
             self.send_response(200)
             self.end_headers()
@@ -227,7 +227,7 @@ def getResolution(camera,size):
 
     available_resolutions = []
     available_resolutions_str = []
-    print('Scanning for available sizes and formats - be patient')
+    logger.info('Scanning for available sizes and formats - be patient')
     for res in resolution:
         width = res[0]
         height = res[1]
@@ -246,11 +246,11 @@ def getResolution(camera,size):
                 available_resolutions.append(reported_resolution)
                 available_resolutions_str.append(str(camwidth) + 'x' + str(camheight) + '(' + camformat + ')')
             stream.release()
-    print('The following resolutions are available from the camera: ' + '  '.join(available_resolutions_str))
+    logger.info('The following resolutions are available from the camera: ' + '  '.join(available_resolutions_str))
 
     if size > len(resolution)-1:     # Make sure the index is within bounds
         size = len(resolution)-1
-        print('Selected size is not available. Defaulting to size ' + resolution(size))
+        logger.info('Selected size is not available. Defaulting to size ' + resolution(size))
 
     requested_width = resolution[size][0]
     requested_height = resolution[size][1]
@@ -258,14 +258,14 @@ def getResolution(camera,size):
     #  Test to see if we have a match in resolution
     test_res = [res for res in available_resolutions if requested_width == res[0] and requested_height == res[1]]
     if test_res:
-        print('The requested size: ' + str(requested_width) + 'x' + str(requested_height) + ' is available')
+        logger.info('The requested size: ' + str(requested_width) + 'x' + str(requested_height) + ' is available')
         test_format = [form[2] for form in test_res if format == form[2]]
         if test_format:
-            print('The requested format: ' + format + ' is available')
+            logger.info('The requested format: ' + format + ' is available')
             return requested_res
         else:
-            print('The requested format: ' + format + ' is not available')
-            print('Using format ' + str(test_res[0][2]))
+            logger.info('The requested format: ' + format + ' is not available')
+            logger.info('Using format ' + str(test_res[0][2]))
         return test_res[0]
 
     #  Test for next available resolution
@@ -273,26 +273,26 @@ def getResolution(camera,size):
         if res[0] <= requested_width and res[1] <= requested_height:  # Get the first match
             lower_width = res[0]
             lower_height = res[1]
-            print('The requested size was not available')
-            print('Using a smaller size: ' + str(lower_width) + 'x' + str(lower_height))
+            logger.info('The requested size was not available')
+            logger.info('Using a smaller size: ' + str(lower_width) + 'x' + str(lower_height))
             test_res = [res for res in available_resolutions if lower_width == res[0] and lower_height == res[1]]
             if test_res:
                 test_format = [form[2] for form in test_res if format == form[2]]
                 if test_format:
-                    print('The requested format: ' + format + ' is available')
+                    logger.info('The requested format: ' + format + ' is available')
                     alternate_res = [lower_width, lower_height, format]
                     return alternate_res
                 else:
-                    print('The requested format: ' + format + ' is not available')
-                    print('Using an alternative format')
+                    logger.info('The requested format: ' + format + ' is not available')
+                    logger.info('Using an alternative format')
                     return test_res[0]
 
     # Nothing matches use lowest default value
     fallback_resolution = [resolution[len(resolution)-1][0], resolution[len(resolution)-1][1], 'YUY2']
-    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    print('There was no resolution match available')
-    print('Trying the lowest default: ' + str(fallback_resolution[0]) + 'x' + str(fallback_resolution[1]) + '(' + fallback_resolution[2] + ')')
-    print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    logger.info('There was no resolution match available')
+    logger.info('Trying the lowest default: ' + str(fallback_resolution[0]) + 'x' + str(fallback_resolution[1]) + '(' + fallback_resolution[2] + ')')
+    logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
     return fallback_resolution
 
 
@@ -312,58 +312,58 @@ def checkIP():
         try:
             sock = socket.socket()
             if sock.connect_ex((host, port)) == 0:
-                print('\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                print('Port ' + str(port) + ' is already in use.')
-                print('Terminating the program')
-                print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info('\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info('Port ' + str(port) + ' is already in use.')
+                logger.info('Terminating the program')
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 sys.exit(2)
 
-            print('\nThe video stream can be access from:')
-            print('http://' + str(ip_address) + ':' + str(port) + '/stream')
-            print('\nIf on the same computer as the camera - you can also try the following:')
-            print('localhost:' + str(port) + '/stream')
-            print('127.0.0.1:' + str(port) + '/stream')
+            logger.info('\nThe video stream can be access from:')
+            logger.info('http://' + str(ip_address) + ':' + str(port) + '/stream')
+            logger.info('\nIf on the same computer as the camera - you can also try the following:')
+            logger.info('localhost:' + str(port) + '/stream')
+            logger.info('127.0.0.1:' + str(port) + '/stream')
         finally:
             pass
     else:
-        print('\nNo port number was provided - terminating the program')
+        logger.info('\nNo port number was provided - terminating the program')
         shut_down()
 
 def opencvsetup(camera):
     # What cameras are available
     available_cameras = []
-    print('Version: ' + streamVersion)
-    print('\nScanning for available Cameras')
+    logger.info('Version: ' + streamVersion)
+    logger.info('\nScanning for available Cameras')
     for index in range(20):  #Check up to 20 camera indexes
         stream = cv2.VideoCapture(index)
         if stream.read()[0]:  # use instead of isOpened as it confirms that iit can be read
             available_cameras.append(str(index))   # using string for convenience
         stream.release()
-    print('\n')
+    logger.info('\n')
 
     if len(available_cameras) < 1:
-        print('No camera was found')
-        print('Verify that the camera is connected and enabled')
-        print('Terminating the program')
+        logger.info('No camera was found')
+        logger.info('Verify that the camera is connected and enabled')
+        logger.info('Terminating the program')
         sys.exit(2)
 
     if len(available_cameras) == 1 and camera == '':
-        print('No camera was specified but one camera was found and will be used')
+        logger.info('No camera was specified but one camera was found and will be used')
         camera = available_cameras[0]   # If nothing specified - try the only available camera
 
     if camera in available_cameras:
-        print('\nOpening camera with identifier: ' + camera)
+        logger.info('\nOpening camera with identifier: ' + camera)
         return camera, getResolution(camera,size)
         #stream = setupStream(size, camera)  #  Set the camera parameters
         #streaming = threading.Thread(target=getFrame, args=(stream,rotate,)).start()
     else:
         if camera == '':
-            print('You did not specify a camera and more than one was found.')
+            logger.info('You did not specify a camera and more than one was found.')
         else:
-            print('The camera with identifier ' + camera + ' is not available')
+            logger.info('The camera with identifier ' + camera + ' is not available')
         cameralist = ",".join(available_cameras)
-        print('The following cameras were detected: ' + cameralist)
-        print('Terminating the program')
+        logger.info('The following cameras were detected: ' + cameralist)
+        logger.info('Terminating the program')
         sys.exit(2)
 
 
@@ -379,7 +379,7 @@ def createLogger():
     c_format = logging.Formatter(' %(threadName)s - %(message)s')
     c_handler.setFormatter(c_format)
     logger.addHandler(c_handler)
-    logfilename = './logfile'
+    logfilename = '../../logfile'
     filehandler = None
     for handler in logger.handlers:
         if handler.__class__.__name__ == "FileHandler":
@@ -389,7 +389,7 @@ def createLogger():
             filehandler.flush()
             filehandler.close()
             logger.removeHandler(filehandler)
-            time.sleep(mainLoopPoll) # Wait for any messages to propogate
+            time.sleep(1) # Wait for any messages to propogate
 
     f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
     f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
@@ -411,11 +411,11 @@ def shut_down():
         stream.stop()
         server.shutdown()
     except Exception as e:
-        print('There was an error shutting down')
-        print(str(e))
+        logger.info('There was an error shutting down')
+        logger.info(str(e))
     finally:
         time.sleep(1)  # give pending actions a chance to finish
-        print('\nThe program has been terminated')
+        logger.info('\nThe program has been terminated')
         os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
 
 
