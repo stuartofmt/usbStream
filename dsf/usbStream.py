@@ -19,6 +19,7 @@ import signal
 import threading
 import subprocess
 import logging
+import shlex
 
 streamVersion = '0.0.1'
 
@@ -155,7 +156,7 @@ def getFrame():
             continue
         
         if ret is False or ret is None:
-            logger.info('\n Empty Frame Detected')
+            logger.info('Empty Frame Detected')
             continue  # we do not want to update frame
         else:
             if rotate != '0':
@@ -175,7 +176,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
         if 'favicon.ico' in self.path:
             return
         if self.path == '/stream':
-            logger.info('\nStreaming started')
+            logger.info('Streaming started')
             self.send_response(200)
             self.send_header('Age', '0')
             self.send_header('Cache-Control', 'no-cache, private')
@@ -193,10 +194,10 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                         self.wfile.write(frame)
                         self.wfile.write(b'\r\n')
                     except Exception as e:
-                        logger.info('\nClient Disconnected with message ' + str(e))
+                        logger.info('Client Disconnected with message ' + str(e))
                         break
             except Exception as e:
-                logger.info('\nRemoved client from ' + str(self.client_address) + ' with message ' + str(e))
+                logger.info('Removed client from ' + str(self.client_address) + ' with message ' + str(e))
         elif self.path == '/terminate':
             self.send_response(200)
             self.end_headers()
@@ -332,7 +333,7 @@ def checkIP():
         try:
             sock = socket.socket()
             if sock.connect_ex((host, port)) == 0:
-                logger.info('\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 logger.info('Port ' + str(port) + ' is already in use.')
                 logger.info('Terminating the program')
                 logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
@@ -371,7 +372,7 @@ def opencvsetup(camera):
         camera = available_cameras[0]   # If nothing specified - try the only available camera
 
     if camera in available_cameras:
-        logger.info('\nOpening camera with identifier: ' + camera)
+        logger.info('Opening camera with identifier: ' + camera)
         return camera, getResolution(camera,size)
         #stream = setupStream(size, camera)  #  Set the camera parameters
         #streaming = threading.Thread(target=getFrame, args=(stream,rotate,)).start()
@@ -407,54 +408,9 @@ def createLogger():
             logging.FileHandler(logfilename)
         ]
     )
-    # logging.StreamHandler(sys.stdout)
-    #logging.info('start train')
+
     logger = logging.getLogger('usbStream')
     logger.info('logging started')
-
-def createLogger1():
-    ##### Create a custom logger #####
-    global logger
-    logfilename = '../../logfile'
-    # Set log level
-    try:
-        if verbose:
-            logging.basicConfig(level = logging.DEBUG)
-        else:
-            logging.basicConfig(level = logging.INFO)
-    except NameError:
-        pass 
-
-    logger = logging.getLogger(__name__)
-    logger.propagate = False
-
-    # Create handler for console output - file output handler is created later if needed
-
-    c_handler = logging.StreamHandler(sys.stdout)
-    c_format = logging.Formatter(' %(threadName)s - %(message)s')
-    c_handler.setFormatter(c_format)
-    logger.addHandler(c_handler)
-
-    filehandler = None
-    for handler in logger.handlers:
-        if handler.__class__.__name__ == "FileHandler":
-            filehandler = handler
-
-        if filehandler != None:  #  Get rid of it
-            filehandler.flush()
-            filehandler.close()
-            logger.removeHandler(filehandler)
-
-    f_handler = logging.FileHandler(logfilename, mode='a', encoding='utf-8',delay=False)
-    f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
-    f_handler.setFormatter(f_format)
-    logger.addHandler(f_handler)
-    
-    for handler in logger.handlers:
-        print(handler.__class__.__name__)
-
-    logger.info('Test INFO')
-    logger.debug('Test DEBUG')
 
 def shut_down():
     #  global streaming
@@ -467,7 +423,7 @@ def shut_down():
         logger.info(str(e))
     finally:
         time.sleep(1)  # give pending actions a chance to finish
-        logger.info('\nThe program has been terminated')
+        logger.info('The program has been terminated')
         os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
 
 
