@@ -22,6 +22,26 @@ import logging
 
 streamVersion = '0.0.1'
 
+class LoadFromFilex (argparse.Action):
+    def __call__ (self, parser, namespace, values, option_string = None):
+        with values as file:
+            try:
+                import copy
+
+                old_actions = parser._actions
+                file_actions = copy.deepcopy(old_actions)
+
+                for act in file_actions:
+                    act.required = False
+
+                parser._actions = file_actions
+                parser.parse_args(shlex.split(file.read()), namespace)
+                parser._actions = old_actions
+
+            except Exception as e:
+                logger.info('Error: ' +  str(e))
+                return
+
 def init():
     # parse command line arguments
     parser = argparse.ArgumentParser(
@@ -39,7 +59,7 @@ def init():
     parser.add_argument('-framerate', type=int, nargs=1, default=[24], help='Frame rate')
     parser.add_argument('-verbose', action='store_true', help='If omitted - limit debug messages ')
     parser.add_argument('-#', type=str, nargs=1, default=[''], help='Comment')
-
+    parser.add_argument('-file', type=argparse.FileType('r'), help='file of options', action=LoadFromFilex)
     args = vars(parser.parse_args())
 
     global host, port, rotate, camera, size, format, framerate, allowed_formats
@@ -61,9 +81,9 @@ def init():
     if rotateimage not in (0,90,180,270):
         rotateimage = 0
     if args['verbose']:
-        verbose = ''
+        verbose = True
     else:
-        verbose = ' 2>/dev/null'
+        verbose = False
 
                 
 class VideoStream:
@@ -318,28 +338,27 @@ def checkIP():
                 logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
                 sys.exit(2)
 
-            logger.info('\nThe video stream can be access from:')
+            logger.info('The video stream can be access from:')
             logger.info('http://' + str(ip_address) + ':' + str(port) + '/stream')
-            logger.info('\nIf on the same computer as the camera - you can also try the following:')
+            logger.info('If on the same computer as the camera - you can also try the following:')
             logger.info('localhost:' + str(port) + '/stream')
             logger.info('127.0.0.1:' + str(port) + '/stream')
         finally:
             pass
     else:
-        logger.info('\nNo port number was provided - terminating the program')
+        logger.info('No port number was provided - terminating the program')
         shut_down()
 
 def opencvsetup(camera):
     # What cameras are available
     available_cameras = []
     logger.info('Version: ' + streamVersion)
-    logger.info('\nScanning for available Cameras')
+    logger.info('Scanning for available Cameras')
     for index in range(20):  #Check up to 20 camera indexes
         stream = cv2.VideoCapture(index)
         if stream.read()[0]:  # use instead of isOpened as it confirms that iit can be read
             available_cameras.append(str(index))   # using string for convenience
         stream.release()
-    logger.info('\n')
 
     if len(available_cameras) < 1:
         logger.info('No camera was found')
@@ -366,8 +385,34 @@ def opencvsetup(camera):
         logger.info('Terminating the program')
         sys.exit(2)
 
-
 def createLogger():
+    global logger
+    # verbose = True
+    logfilename = '../../logfile'
+    try:
+        logging.getLogger().removeHandler(logging.getLogger().handlers[0])
+        logging.getLogger().removeHandler(logging.getLogger().handlers[0])
+    except:
+        pass
+
+    if verbose:
+        loglevel = logging.DEBUG
+    else:
+        loglevel = logging.INFO
+            
+    logging.basicConfig(
+        level=loglevel,
+        format="%(asctime)s [%(levelname)s] %(message)s",
+        handlers=[
+            logging.FileHandler(logfilename)
+        ]
+    )
+    # logging.StreamHandler(sys.stdout)
+    #logging.info('start train')
+    logger = logging.getLogger('usbStream')
+    logger.info('logging started')
+
+def createLogger1():
     ##### Create a custom logger #####
     global logger
     logfilename = '../../logfile'
@@ -392,7 +437,6 @@ def createLogger():
 
     filehandler = None
     for handler in logger.handlers:
-        print(handler.__class__.__name__)
         if handler.__class__.__name__ == "FileHandler":
             filehandler = handler
 
@@ -400,14 +444,17 @@ def createLogger():
             filehandler.flush()
             filehandler.close()
             logger.removeHandler(filehandler)
-            time.sleep(1) # Wait for any messages to propogate
 
-    f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
+    f_handler = logging.FileHandler(logfilename, mode='a', encoding='utf-8',delay=False)
     f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
     f_handler.setFormatter(f_format)
-    logger.addHandler(f_handler) 
+    logger.addHandler(f_handler)
+    
+    for handler in logger.handlers:
+        print(handler.__class__.__name__)
 
-
+    logger.info('Test INFO')
+    logger.debug('Test DEBUG')
 
 def shut_down():
     #  global streaming
@@ -444,15 +491,15 @@ def main():
     signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
     signal.signal(signal.SIGTERM, quit_sigterm)
 
-    createLogger()
-
     # Define globals
 
-    global host, port, rotate, camera, size, framerate, streaming, stream, server
+    global host, port, rotate, camera, size, framerate, streaming, stream, server, verbose
 
     thisinstancepid = os.getpid()
 
     init()
+    createLogger()
+    
     camera, res = opencvsetup(camera) # May change camera number
     stream = VideoStream(int(camera), res, framerate)
 
