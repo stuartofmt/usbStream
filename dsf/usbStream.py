@@ -365,6 +365,44 @@ def opencvsetup(camera):
         print('Terminating the program')
         sys.exit(2)
 
+
+def createLogger()
+    ##### Create a custom logger #####
+    global logger
+    logger = logging.getLogger(__name__)
+    logger.propagate = False
+
+    # Create handler for console output - file output handler is created later if needed
+
+    c_handler = logging.StreamHandler(sys.stdout)
+    c_format = logging.Formatter(duet + ' %(threadName)s - %(message)s')
+    c_handler.setFormatter(c_format)
+    logger.addHandler(c_handler)
+    logfilename = './logfile'
+    filehandler = None
+    for handler in logger.handlers:
+        if handler.__class__.__name__ == "FileHandler":
+            filehandler = handler
+
+        if filehandler != None:  #  Get rid of it
+            filehandler.flush()
+            filehandler.close()
+            logger.removeHandler(filehandler)
+            time.sleep(mainLoopPoll) # Wait for any messages to propogate
+
+    f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
+    f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
+    f_handler.setFormatter(f_format)
+    logger.addHandler(f_handler) 
+
+    try:
+        if val:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
+    except NameError:
+        pass  
+
 def shut_down():
     #  global streaming
     #  Shutdown the running threads
@@ -392,35 +430,7 @@ def main():
     signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
     signal.signal(signal.SIGTERM, quit_sigterm)
 
-    ##### Create a custom logger #####
-    global logger
-    logger = logging.getLogger(__name__)
-    logger.propagate = False
-
-    setdebug(verbose)
-
-    # Create handler for console output - file output handler is created later if needed
-
-    c_handler = logging.StreamHandler(sys.stdout)
-    c_format = logging.Formatter(duet + ' %(threadName)s - %(message)s')
-    c_handler.setFormatter(c_format)
-    logger.addHandler(c_handler)
-    logfilename = './logfile'
-    filehandler = None
-    for handler in logger.handlers:
-        if handler.__class__.__name__ == "FileHandler":
-            filehandler = handler
-
-        if filehandler != None:  #  Get rid of it
-            filehandler.flush()
-            filehandler.close()
-            logger.removeHandler(filehandler)
-            time.sleep(mainLoopPoll) # Wait for any messages to propogate
-
-    f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
-    f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
-    f_handler.setFormatter(f_format)
-    logger.addHandler(f_handler)
+    createLogger()
 
     # Define globals
 
