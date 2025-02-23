@@ -405,7 +405,8 @@ def createLogger():
         level=loglevel,
         format="%(asctime)s [%(levelname)s] %(message)s",
         handlers=[
-            logging.FileHandler(logfilename)
+            logging.FileHandler(logfilename),
+            logging.StreamHandler(sys.stderr)
         ]
     )
 
