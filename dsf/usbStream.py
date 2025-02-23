@@ -418,9 +418,17 @@ def shut_down():
         os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
 
 
-def quit_gracefully(*args):
-    print('\n!!!!!! Stopped by SIGINT or CTL+C  !!!!!!')
-    shut_down()
+def quit_sigint(*args):
+    logger.info('Terminating because of Ctl + C (SIGINT)')
+    quit_forcibly()
+
+def quit_sigterm(*args):
+    logger.info('Terminating because of SIGTERM')
+    quit_forcibly()  
+
+def quit_forcibly():
+    logger.info('!!!!! Forced Termination !!!!!')
+    os.kill(os.getpid(), 9)  # Brutal but effective
 
 
 def main():
