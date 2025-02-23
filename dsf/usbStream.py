@@ -366,7 +366,7 @@ def opencvsetup(camera):
         sys.exit(2)
 
 
-def createLogger()
+def createLogger():
     ##### Create a custom logger #####
     global logger
     logger = logging.getLogger(__name__)
