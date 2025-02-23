@@ -19,7 +19,7 @@ import signal
 import threading
 import subprocess
 
-streamVersion = '2.1.0' #fixed shutdown
+streamVersion = '0.0.1'
 
 ## Added some extra try clauses and some time.sleep to prevent runaway blocking situations
 
