@@ -1,0 +1,5 @@
+*.conf
+/shelf/
+/workspace.xml
+/.idea
+.vs/
