@@ -376,7 +376,7 @@ def createLogger():
     # Create handler for console output - file output handler is created later if needed
 
     c_handler = logging.StreamHandler(sys.stdout)
-    c_format = logging.Formatter(duet + ' %(threadName)s - %(message)s')
+    c_format = logging.Formatter(' %(threadName)s - %(message)s')
     c_handler.setFormatter(c_format)
     logger.addHandler(c_handler)
     logfilename = './logfile'
