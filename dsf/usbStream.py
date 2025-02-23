@@ -184,6 +184,32 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             self.send_error(404)
             self.end_headers()
 
+def runsubprocess(cmd):
+    logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout=5)
+        logger.debug('Return Code = ' + str(result.returncode))
+        logger.debug('stdout = ' + str(result.stdout))
+        logger.debug('stderr = ' + str(result.stderr))
+        ## if str(result.stderr) == '0' or str(result.stderr) == '':   # some apps dont provide stderr
+        if result.returncode == 0:
+            logger.debug('Command Success : ' + str(cmd))
+            if result.stdout != '':
+                logger.debug(str(result.stdout))
+            return True
+        else:
+            logger.info('Command Failure: ' + str(cmd))
+            logger.debug('Error = ' + str(result.stderr))
+            logger.debug('Response = ' + str(result.stdout))
+            return False
+    except (subprocess.TimeoutExpired):
+        logger.info('Call Timed Out: ' + str(cmd))
+        return False
+    except (subprocess.CalledProcessError, OSError) as e:
+        logger.info('Command Exception: ' + str(cmd))
+        logger.info('Exception = ' + str(e))
+        return False
+
 
 def getResolution(camera,size):
     resolution = []                  # Note: needs to be ordered in size to support later comparisons
@@ -359,12 +385,44 @@ def quit_gracefully(*args):
     shut_down()
 
 
-"""
-Main Program
-"""
-if __name__ == "__main__":
+def main():
 
-    signal.signal(signal.SIGINT, quit_gracefully)
+    # Allow process running in background or foreground to be forcibly
+    # shutdown with SIGINT (kill -2 <pid> or SIGTERM)
+    signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
+    signal.signal(signal.SIGTERM, quit_sigterm)
+
+    ##### Create a custom logger #####
+    global logger
+    logger = logging.getLogger(__name__)
+    logger.propagate = False
+
+    setdebug(verbose)
+
+    # Create handler for console output - file output handler is created later if needed
+
+    c_handler = logging.StreamHandler(sys.stdout)
+    c_format = logging.Formatter(duet + ' %(threadName)s - %(message)s')
+    c_handler.setFormatter(c_format)
+    logger.addHandler(c_handler)
+    logfilename = './logfile'
+    filehandler = None
+    for handler in logger.handlers:
+        if handler.__class__.__name__ == "FileHandler":
+            filehandler = handler
+
+        if filehandler != None:  #  Get rid of it
+            filehandler.flush()
+            filehandler.close()
+            logger.removeHandler(filehandler)
+            time.sleep(mainLoopPoll) # Wait for any messages to propogate
+
+    f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
+    f_format = logging.Formatter('%(asctime)s - %(threadName)s - %(message)s')
+    f_handler.setFormatter(f_format)
+    logger.addHandler(f_handler)
+
+    # Define globals
 
     global host, port, rotate, camera, size, framerate, streaming, stream, server
 
@@ -375,7 +433,7 @@ if __name__ == "__main__":
     stream = VideoStream(int(camera), res, framerate)
 
     checkIP() # Check the IP and Port for http server
-    
+
     #start the camera streaming
     stream.start()
     # Start the http server
@@ -387,3 +445,11 @@ if __name__ == "__main__":
         #server.serve_forever()
     except KeyboardInterrupt:
         pass
+
+###########################
+# Program  begins here
+###########################
+
+if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
+    
+    main()
