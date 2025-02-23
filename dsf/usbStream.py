@@ -18,6 +18,7 @@ import time
 import signal
 import threading
 import subprocess
+import logging
 
 streamVersion = '0.0.1'
 
