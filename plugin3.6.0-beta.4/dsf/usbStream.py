@@ -1,6 +1,10 @@
-#! /opt/dsf/plugins/DuetLapse/venv/bin/python -u
+
 """
-#!/usr/bin/python3
+The she-bang is not required as the plugin manager calls with fully qualified path
+Standard python install e.g.
+#!/usr/bin/python3 -u
+Venv python install e.g.
+#! /opt/dsf/plugins/DuetLapse/venv/bin/python -u
 """
 # USB Web streaming
 
