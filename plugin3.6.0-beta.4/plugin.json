@@ -2,16 +2,15 @@
     "id": "usbStream",
     "name": "usbStream",
     "author": "Stuartofmt",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "license": "GPL-2.0-or-later",
     "homepage": "https://github.com/stuartofmt/usbStream",
 	"sbcRequired": true,
-	"dwcVersion": "3.6.0-beta.4",
-    "sbcDsfVersion": "3.6.0-beta.4",
+    "sbcDsfVersion": "3.6",
 	"sbcExecutable": "usbStream.py",
 	"sbcExecutableArguments": "-file /opt/dsf/sd/sys/usbStream/usbStream.config",
 	"sbcOutputRedirected": false,
-	"sbcPermissions": ["commandExecution","networkAccess", "webcamAccess", "readSystem", "writeSystem", "fileSystemAccess","launchProcesses", "managePlugins"],
+    "sbcPermissions": ["networkAccess", "readSystem","writeSystem", "fileSystemAccess"],
 	"sbcPythonDependencies": ["opencv-python","imutils"]
  }
  

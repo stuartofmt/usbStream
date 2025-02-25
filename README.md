@@ -5,6 +5,8 @@ This is a simple video streamer for use with usb cameras.  It streams video in j
 It is particularly useful when you want to same video feed to be consumed by more than one application.  For example a timelapse recording application and to also monitor in real time.
 
 <br>usbStream is designed to run  as a Duet3d DWC plugin.<br>
+<br>The live video can be displayed in a web browser<br>
+<br>Alternatively - the httpViewer plugin can be used with DWC<br>
 
 This is a trimmed down version of videostream. Primarily - I removed the embedded pi camera elements as there are other programs for the pi camera with more extensive capability.
 

@@ -1,11 +1,11 @@
+#! /opt/dsf/plugins/DuetLapse/venv/bin/python -u
+"""
 #!/usr/bin/python3
+"""
+# USB Web streaming
 
-# Web streaming
-
-
-# Modified by Stuartofmt
+# Author Stuartofmt - chunks of code sourced from various internet examples
 # Released under The MIT License. Full text available via https://opensource.org/licenses/MIT
-# Updated to use threadingHTTPServer and SimpleHTTPhandler
 
 import argparse
 import cv2
@@ -17,11 +17,11 @@ import os
 import time
 import signal
 import threading
-import subprocess
 import logging
 import shlex
 
-streamVersion = '0.0.1'
+usbStreamVersion = '1.0.0'
+logfilename = '/opt/dsf/sd/sys/usbStream/usbStream.log'
 
 class LoadFromFilex (argparse.Action):
     def __call__ (self, parser, namespace, values, option_string = None):
@@ -46,7 +46,7 @@ class LoadFromFilex (argparse.Action):
 def init():
     # parse command line arguments
     parser = argparse.ArgumentParser(
-            description='Streaming video http server. V' + streamVersion,
+            description='Streaming video http server. V' + usbStreamVersion,
             allow_abbrev=False)
     # Environment
     parser.add_argument('-host', type=str, nargs=1, default=['0.0.0.0'],
@@ -197,7 +197,17 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                         logger.info('Client Disconnected with message ' + str(e))
                         break
             except Exception as e:
-                logger.info('Removed client from ' + str(self.client_address) + ' with message ' + str(e))
+                if 'Broken pipe' in str(e):
+                    logger.debug(str(e))          
+                else:
+                    logger.info(str(e))
+
+                try:
+                    self.wfile.close()
+                    self.wfile = None
+                except:
+                    logger.info('Could not close wfile')
+                return
         elif self.path == '/terminate':
             self.send_response(200)
             self.end_headers()
@@ -205,32 +215,6 @@ class StreamingHandler(SimpleHTTPRequestHandler):
         else:
             self.send_error(404)
             self.end_headers()
-
-def runsubprocess(cmd):
-    logger.debug('RUNNING SUBPROCESS WITH ' + str(cmd))
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True, shell=True, timeout=5)
-        logger.debug('Return Code = ' + str(result.returncode))
-        logger.debug('stdout = ' + str(result.stdout))
-        logger.debug('stderr = ' + str(result.stderr))
-        ## if str(result.stderr) == '0' or str(result.stderr) == '':   # some apps dont provide stderr
-        if result.returncode == 0:
-            logger.debug('Command Success : ' + str(cmd))
-            if result.stdout != '':
-                logger.debug(str(result.stdout))
-            return True
-        else:
-            logger.info('Command Failure: ' + str(cmd))
-            logger.debug('Error = ' + str(result.stderr))
-            logger.debug('Response = ' + str(result.stdout))
-            return False
-    except (subprocess.TimeoutExpired):
-        logger.info('Call Timed Out: ' + str(cmd))
-        return False
-    except (subprocess.CalledProcessError, OSError) as e:
-        logger.info('Command Exception: ' + str(cmd))
-        logger.info('Exception = ' + str(e))
-        return False
 
 
 def getResolution(camera,size):
@@ -244,7 +228,7 @@ def getResolution(camera,size):
     resolution.append([720, 480])
     resolution.append([640, 480])
     resolution.append([320, 240])
-    #allowed_formats = ('BGR3', 'YUY2', 'MJPG','JPEG', 'H264', 'IYUV')
+
 
     available_resolutions = []
     available_resolutions_str = []
@@ -353,7 +337,7 @@ def checkIP():
 def opencvsetup(camera):
     # What cameras are available
     available_cameras = []
-    logger.info('Version: ' + streamVersion)
+    logger.info('Version: ' + usbStreamVersion)
     logger.info('Scanning for available Cameras')
     for index in range(20):  #Check up to 20 camera indexes
         stream = cv2.VideoCapture(index)
@@ -388,26 +372,27 @@ def opencvsetup(camera):
 
 def createLogger():
     global logger
-    # verbose = True
-    logfilename = '../../logfile'
     try:
         logging.getLogger().removeHandler(logging.getLogger().handlers[0])
         logging.getLogger().removeHandler(logging.getLogger().handlers[0])
     except:
         pass
-
+    
     if verbose:
-        loglevel = logging.DEBUG
+        myloglevel = logging.DEBUG
     else:
-        loglevel = logging.INFO
-            
+        myloglevel = logging.INFO
+
+    myformat = "%(asctime)s [%(levelname)s] %(message)s"
+    
+    myhandlers = [logging.FileHandler(logfilename, mode='w', encoding='utf-8') ,
+                  logging.StreamHandler(sys.stdout)
+                 ]
+               
     logging.basicConfig(
-        level=loglevel,
-        format="%(asctime)s [%(levelname)s] %(message)s",
-        handlers=[
-            logging.FileHandler(logfilename),
-            logging.StreamHandler(sys.stderr)
-        ]
+        level = myloglevel,
+        format = myformat,
+        handlers = myhandlers
     )
 
     logger = logging.getLogger('usbStream')
@@ -468,9 +453,6 @@ def main():
     try:
         server = ThreadingHTTPServer((host, port), StreamingHandler)
         threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
-        #server.start()
-        #server.daemon = True  # Make sure it stops when program does
-        #server.serve_forever()
     except KeyboardInterrupt:
         pass
 
