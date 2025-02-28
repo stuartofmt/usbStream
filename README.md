@@ -10,7 +10,7 @@ It is particularly useful when you want to same video feed to be consumed by mor
 
 This is based on a prior program, videostream. I removed the embedded pi camera elements as there are other programs for the pi camera with more extensive capability.  I additionally made some incremental improvements.
 
-A note on latency:  There are several layers of software between the camera and a browser (or other client).  As well, CPU capability, memory etc. all have an effect.  The latency of usbStream, across a local network is approx 1 second.  This is about as good as it gets.
+A note on latency:  There are several layers of software between the camera and a browser (or other client).  As well, CPU capability, memory etc. all have an effect.  The latency of usbStream, across a local network is a little less than 1 second.  This is about as good as it gets.
 
 ### Version 1.0.0
 
