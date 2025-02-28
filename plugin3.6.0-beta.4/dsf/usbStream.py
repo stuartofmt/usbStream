@@ -25,7 +25,6 @@ import logging
 import shlex
 
 usbStreamVersion = '1.0.0'
-logfilename = '/opt/dsf/sd/sys/usbStream/usbStream.log'
 
 class LoadFromFilex (argparse.Action):
     def __call__ (self, parser, namespace, values, option_string = None):
@@ -62,13 +61,15 @@ def init():
     parser.add_argument('-size', type=int, nargs=1, default=[0], help='image resolution')
     parser.add_argument('-format', type=str, nargs=1, default=['MJPG'], help='Preferred format')
     parser.add_argument('-framerate', type=int, nargs=1, default=[24], help='Frame rate')
+    parser.add_argument('-autoexp', type=int, nargs=1, default=[0], help='Auto exposure')
     parser.add_argument('-verbose', action='store_true', help='If omitted - limit debug messages ')
     parser.add_argument('-#', type=str, nargs=1, default=[''], help='Comment')
+    parser.add_argument('-logfile', type=str, nargs=1, default=['/opt/dsf/sd/sys/usbStream/usbStream.log'], help='full logfile name')
     parser.add_argument('-file', type=argparse.FileType('r'), help='file of options', action=LoadFromFilex)
     args = vars(parser.parse_args())
 
     global host, port, rotate, camera, size, format, framerate, allowed_formats
-    global rotateimage, verbose
+    global rotateimage, verbose, logfilename, autoexp
     
     host = args['host'][0]
     port = args['port'][0]
@@ -77,6 +78,7 @@ def init():
     size = abs(args['size'][0])
     format = args['format'][0]
     framerate = abs(args['framerate'][0])
+    autoexp = abs(args['autoexp'][0])
     allowed_formats = ('BGR3', 'YUY2', 'MJPG','JPEG', 'H264', 'IYUV')
     if format not in allowed_formats:
         logger.info(format + 'is not an allowed format')
@@ -89,28 +91,31 @@ def init():
         verbose = True
     else:
         verbose = False
-
+    logfilename = args['logfile'][0]
                 
 class VideoStream:
     # initialize with safe defaults
-    def __init__(self, src=0, res=[800,600,'MJPG'], frate=10, name="VideoStream"):
+    #def __init__(self, src=0, res=[800,600,'MJPG'], frate=10, name="VideoStream"):
+    def __init__(self, src=0, res=[800,600,'MJPG'], name="VideoStream"):
         # initialize the video camera stream and read the first frame
         self.stream = cv2.VideoCapture(src)
-        if isinstance(src, int):  #Bypass is stream input
-            try:
-                self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 0)
-                self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, res[0])
-                self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, res[1])
-                format = res[2]
-                fourcc = cv2.VideoWriter_fourcc(*format)
-                self.stream.set(cv2.CAP_PROP_FOURCC, fourcc)
-                self.stream.set(cv2.CAP_PROP_FPS, frate)
-            except Exception as e:
-                logger.info('opencv error')
-                logger.info(e)
+        #if isinstance(src, int):  #Bypass is stream input
+        try:
+            self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 0)
+            self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, res[0])
+            self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, res[1])
+            format = res[2]
+            fourcc = cv2.VideoWriter_fourcc(*format)
+            self.stream.set(cv2.CAP_PROP_FOURCC, fourcc)
+            # self.stream.set(cv2.CAP_PROP_FPS, frate)
+        except Exception as e:
+            logger.info('opencv error')
+            logger.info(e)
 
-            self.grabbed, self.frame = self.stream.read()
+        self.grabbed, self.frame = self.stream.read() #do a dummy read
 
+        self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0) # Turn off auto exposure after camera on
+        self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, autoexp) #Try to set to requested
         # initialize the thread name
         self.name = name
 
@@ -126,18 +131,28 @@ class VideoStream:
 
     def update(self):
         # keep looping infinitely until the thread is stopped
+        previous_time = 0
+        frame_interval = 1/framerate
         while True:
             if self.stopped:
                 self.stream.release()
                 return
-            time.sleep(0.5) # No need to read too often
+            #time.sleep(1/framerate) # No need to read more often than framerate
             # otherwise, read the next frame from the stream
+            elapsed_time = time.time() - previous_time
             try:
-                self.grabbed, self.frame = self.stream.read()
+                mygrabbed, myframe = self.stream.read() # keeps the buffer clear - reduced latency
             except Exception as e:
-                logger.info('problem updating camera')
+                logger.info('Problem getting camera frame')
                 logger.info(e)
-                time.sleep(1)    
+                time.sleep(1)
+                continue
+            if elapsed_time > frame_interval:  # updates at requested frame rate
+                     previous_time = time.time()
+                     self.grabbed = mygrabbed
+                     self.frame = myframe
+
+   
 
     def read(self):
         # return the frame most recently read
@@ -151,25 +166,28 @@ def getFrame():
     # stream and rotate are globals
     loop = True
     while loop:
-        time.sleep(1/framerate) # Don't ask for frames any quicker than needed
         try:
             ret, buffer = stream.read()
         except Exception as e:
             logger.info('There was an error reading from the camera')
             logger.info(e)
+            time.sleep(1/framerate) # Don't ask for frames any quicker than needed
             continue
         
         if ret is False or ret is None:
             logger.info('Empty Frame Detected')
+            time.sleep(1/framerate) # Don't ask for frames any quicker than needed
             continue  # we do not want to update frame
         else:
             if rotate != '0':
                 buffer = imutils.rotate(buffer, int(rotate))
+
             try:
-                _, frame = cv2.imencode(".jpg", buffer)
-                loop = False    
-            except:
-                pass  # suppress errors on conversion
+                _, frame = cv2.imencode(".jpg", buffer) #Turn it into a jpeg
+                loop = False    # Done
+            except Exception as e:
+                logger.info('Conversion Error' + str(e))
+                time.sleep(1/framerate) # Don't ask for frames any quicker than needed
     return frame        
 
 class StreamingHandler(SimpleHTTPRequestHandler):
@@ -181,37 +199,33 @@ class StreamingHandler(SimpleHTTPRequestHandler):
             return
         if self.path == '/stream':
             logger.info('Streaming started')
+            # Create top level header
             self.send_response(200)
             self.send_header('Age', '0')
             self.send_header('Cache-Control', 'no-cache, private')
             self.send_header('Pragma', 'no-cache')
             self.send_header('Content-Type', 'multipart/x-mixed-replace; boundary=FRAME')
             self.end_headers()
-            try:
-                while True:
-                    try:
-                        frame = getFrame()
-                        self.wfile.write(b'--FRAME\r\n')
-                        self.send_header('Content-Type', 'image/jpeg')
-                        self.send_header('Content-Length', str(len(frame)))
-                        self.end_headers()
-                        self.wfile.write(frame)
-                        self.wfile.write(b'\r\n')
-                    except Exception as e:
-                        logger.info('Client Disconnected with message ' + str(e))
-                        break
-            except Exception as e:
-                if 'Broken pipe' in str(e):
-                    logger.debug(str(e))          
-                else:
-                    logger.info(str(e))
 
+            while True:
                 try:
-                    self.wfile.close()
-                    self.wfile = None
-                except:
-                    logger.info('Could not close wfile')
-                return
+                    frame = getFrame()
+                    self.wfile.write(b'--FRAME\r\n')
+                    self.send_header('Content-Type', 'image/jpeg')
+                    self.send_header('Content-Length', str(len(frame)))
+                    self.end_headers()
+                    self.wfile.write(frame)
+                    self.wfile.write(b'\r\n')
+                except Exception as e:
+                    if 'Broken pipe' in str(e) or 'WinError 10053' in str(e):
+                        logger.info('Client Disconnected')
+                        logger.debug(str(e))     
+                    else:
+                        logger.info(str(e))
+                    break
+                
+            return
+
         elif self.path == '/terminate':
             self.send_response(200)
             self.end_headers()
@@ -240,7 +254,9 @@ def getResolution(camera,size):
     for res in resolution:
         width = res[0]
         height = res[1]
+        logger.debug('Checking resolution: ' + str(width) + ' x ' + str(height))
         for form in allowed_formats:
+            logger.debug('Checking format: ' + str(form))
             stream = cv2.VideoCapture(int(camera))
             stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             stream.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -251,6 +267,7 @@ def getResolution(camera,size):
             cc = stream.get(cv2.CAP_PROP_FOURCC)
             camformat = "".join([chr((int(cc) >> 8 * i) & 0xFF) for i in range(4)])
             reported_resolution = [camwidth, camheight, camformat]
+            logger.debug('Reported capability ' + str(reported_resolution))
             if reported_resolution not in available_resolutions and camformat in allowed_formats:
                 available_resolutions.append(reported_resolution)
                 available_resolutions_str.append(str(camwidth) + 'x' + str(camheight) + '(' + camformat + ')')
@@ -445,8 +462,11 @@ def main():
 
     init()
     createLogger()
+
+
     
     camera, res = opencvsetup(camera) # May change camera number
+    # stream = VideoStream(int(camera), res, framerate)
     stream = VideoStream(int(camera), res, framerate)
 
     checkIP() # Check the IP and Port for http server

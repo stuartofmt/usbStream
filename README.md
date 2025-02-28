@@ -4,11 +4,13 @@
 This is a simple video streamer for use with usb cameras.  It streams video in jpg format from a url.
 It is particularly useful when you want to same video feed to be consumed by more than one application.  For example a timelapse recording application and to also monitor in real time.
 
-<br>usbStream is designed to run  as a Duet3d DWC plugin.<br>
+<br>usbStream is designed to run as a Duet3d DWC plugin.<br>
 <br>The live video can be displayed in a web browser<br>
 <br>Alternatively - the httpViewer plugin can be used with DWC<br>
 
-This is a trimmed down version of videostream. Primarily - I removed the embedded pi camera elements as there are other programs for the pi camera with more extensive capability.
+This is based on a prior program, videostream. I removed the embedded pi camera elements as there are other programs for the pi camera with more extensive capability.  I additionally made some incremental improvements.
+
+A note on latency:  There are several layers of software between the camera and a browser (or other client).  As well, CPU capability, memory etc. all have an effect.  The latency of usbStream, across a local network is approx 1 second.  This is normal.
 
 
 ### Version 1.0.0
@@ -25,6 +27,9 @@ The main capabilities include:
 6.  Allows video size selections.
 7.  Allows video rotation.
 8.  Allows video format selection
+10. Allows exposure selection
+
+**Note that Cameras vary and may not accept all the settings described above**
 
 ## Requirements 
 
@@ -34,27 +39,14 @@ The main capabilities include:
 
 *** Note ***
 - Testing has been on a Raspberry Pi 3B+ using Bookworm
-- the opencv method supports USB cameras on most platforms and MAY in certain cases support Raspberry Pi embedded cameras (but this si not a design goal or tested).
+- the opencv method supports USB cameras on most platforms and MAY in certain cases support Raspberry Pi embedded cameras (but this is not a design goal or tested).
+It is possible to run usbStream.py as a stand-alone program (on most OS's) but capabilities may vary.
 
 ---
 
-### Installing python libraries
-
-Usually, python libraries can be installed using the following command (other forms of the command can also be used):
-
-```
-python3 -m pip install [library name]
-```
-
-One of the needed libraries is OpenCV **V3.4 or later**.  This library exists in several forms and can be confusing to install.  The following form is recomended for most computers except the Raspberry Pi: 
-```
-python3 -m pip install opencv-contrib-python
-```
-Due to dependencies not included in some OS versions on the Raspberry Pi - opencv-contrib-python may not install.
-***The instructions here https://singleboardbytes.com/647/install-opencv-raspberry-pi-4.htm may help however you may need to remove opencv-contrib-python from the plugin.json file (so that install succeeds) the manually install into the virtual environment /opt/dsf/plugins/usbStream/venv/bin**
-
-## Starting
-
+Due to differences in some OS versions on the Raspberry Pi: opencv-python may not install.
+opencv_contrib_python is an alternative that may work.
+***This can be tested by replacing "opencv-python" with "opencv_contrib_python" in the plgin.json file**
 
 ### Usage
 
@@ -63,29 +55,34 @@ Due to dependencies not included in some OS versions on the Raspberry Pi - openc
 The video is accessed using a http link (e.g. using a browser).
 The url is of the form:
 ```
-http://<ipaddress>:<port>/stream
+http://<ipaddress>:<port>/stream   #Note that /stream is required
 ```
 ---
 
 ### Configuration file
 
-system-->usbStream-->usbStream.conf
-python3 ./videostream.py -port [-camera] [-rotate] [-size] [-format][-host][-framerate]
+On startup, the plugin looks for a configuration file.  By default this is
+/opt/dfs/sd/sys/usbStream/usbStream.config 
 
-Each option is preceded by a dash - without any space between the dash and the option. Some options have parameters described in the square brackets.   The square brackets are NOT used in entering the options. If an option is not specified, the default used.
-Not all options are applicable to both the opencv and libcamera methods.  Those which are not are marked.
+It can be edited from the DWC UI by navigating to:
+system-->usbStream-->usbStream.conf
+
+### Options
+
+
+Each option is preceded by a dash - without any space between the dash and the option name. Some options have parameters described in the square brackets.   The square brackets are NOT used in entering the options. If an option is not specified, the default used.
 
 #### -port [port number]
-**Mandatory - This is a required option.** <br>
+**Mandatory** <br>
 If the selected port is already in use the program will not start
 
 Example
 ```
--port 8090      #Causes internal http listener to start and listen on port 8090<br>
+-port 8090      #Causes internal http server to start and listen on port 8090
 ```
 
 #### -camera [number]
-May be omitted if there is only one camera available.
+**Optional if only one camera available**<br>
 If there is more than one camera then the camera number needs to be specified.
 **Note that camera numbers begin at 0 (zero) for the first camera.**
 
@@ -95,7 +92,7 @@ Example
 ```  
 
 #### -rotate [number]
-Defaults to 0 (zero).
+**Optional - Defaults is 0 (zero)**<br>
 If the video from the camera does not have the right orientation the video can be rotated with this option.
 Allowed settings are 0, 90, 180, 270
 
@@ -104,8 +101,9 @@ Example
 -rotate 180      #Causes the program to rotate the video 180 deg
 ```
 
-#### -size [number] (opencv only)
-If omitted - the program will try to determine the highest resolution your camera supports.<br>
+#### -size [number]
+**Optional**<br>
+If omitted - the program will try to determine the highest resolution your camera supports.
 The available resolutions are from the list below.
 
 If you specify the -size option (i.e. a number from 0 to 8) - the program will try to use the corresponding resolution.<br>
@@ -139,7 +137,7 @@ Example
 ```
 
 #### -format [option]
-If omitted - the program will try to use MJPG.<br>
+***Optional -  Default is MJPG.***<br>
 Most users will not need to change this
 The available formats are from the list below.
 **Note that these are the formats from the camera.  The program streams jpeg images**
@@ -158,41 +156,66 @@ Example
 ```
 
 #### -host [ip address]
-If omitted the default is 0.0.0.0<br>
-Generally this can be left out (default) as it will allow connection to the http listener from localhost:<port> (locally) or from another machine with network access using <http://actual-ip-address-of-server-running-DuetLapse3><port>.
+**Optional - Default is 0.0.0.0**<br>
+In almost all cases, this should be omitted.
 
 Example
 ```
--host 192.168.86.10      #Causes internal http listener (if active) to listen at ip address 192.168.86.10<br>
+-host 192.168.86.10      #Causes internal http server to listen at ip address 192.168.86.10:<port>
 ```
 
 #### -framerate [number]
-If omitted the default is 24<br>
-Generally this can be left out (default).
+**Optional - Default is 24**<br>
+Generally this can be left at the default.
+Setting to a higher number may make latency worse.
 
 Example
 ```
 -framerate 30      #  Streams at 30 fps<br>
 ```
 
+#### -autoexp [number between 0 and 1]
+**Optional - Default is 0**<br>
+Generally this can be left out (default).
+Sets the auto exposure level (if supported by the camera)
+**Note that the meaning of auto exposure settings are poorly defined**
+
+Example
+```
+-autoexp 0.5      # sets auto exposure to 0.5
+```
+
+
 **Example configuration file**
 
-Start usbStream and have it stream video on port 8081 rotated 180 deg using the only (default) camera at a resolution of 800x600
+E.g. 1 - The most basic configuration file simply provides a port number
+
+
+```
+-port 8090
+```
+
+E.g. 2 - Stream video on port 8081 rotated 180 deg using the only (default) camera at a resolution of 800x600
 
 ```
 -port 8082
 -rotate 180
 -size 5
-
+-verbose
 ```
 
-  ### Error Messages
-  
-At startup console messages are printed to confirm correct operation.
+### Logfile
+A logfile is located is located at 
+
+
+
+### Monitoring from a console
+
+The activity assoicated with usbStream can be monitored at the console using
+
 
 There may be some error messages that look like this:
 VIDEOIO ERROR: V4L: can't open camera by index 1
 These can be safely ignored as they are an artifact of one of the underlying libraries.
 
 Some errors in operation can be related to available memory and buffer sizes (e.g. Empty Frame Detected).  These can often be fixed by reducing the resolution of images (i.e. using the -size option) or reducing the frame rate (i.e. using the -framerate option).
-  
