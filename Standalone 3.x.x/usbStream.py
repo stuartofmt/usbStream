@@ -1,10 +1,11 @@
 
 """
-The she-bang is not required as the plugin manager calls with fully qualified path
+The she-bang is not required if called with fully qualified paths
+The plugin manager does this.  Otherwise use ...
 Standard python install e.g.
 #!/usr/bin/python3 -u
 Venv python install e.g.
-#! /opt/dsf/plugins/DuetLapse/venv/bin/python -u
+#! <path-to-virtual-environment/bin>python -u
 """
 # USB Web streaming
 

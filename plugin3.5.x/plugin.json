@@ -1,0 +1,16 @@
+{
+    "id": "usbStream",
+    "name": "usbStream",
+    "author": "Stuartofmt",
+    "version": "1.0.0",
+    "license": "GPL-2.0-or-later",
+    "homepage": "https://github.com/stuartofmt/usbStream",
+	"sbcRequired": true,
+    "sbcDsfVersion": "3.5",
+	"sbcExecutable": "usbStream.py",
+	"sbcExecutableArguments": "-file /opt/dsf/sd/sys/usbStream/usbStream.config",
+	"sbcOutputRedirected": false,
+    "sbcPermissions": ["networkAccess", "readSystem","writeSystem", "fileSystemAccess"],
+	"sbcPythonDependencies": ["opencv-python","imutils"]
+ }
+ 
