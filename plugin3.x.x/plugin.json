@@ -6,7 +6,7 @@
     "license": "GPL-2.0-or-later",
     "homepage": "https://github.com/stuartofmt/usbStream",
 	"sbcRequired": true,
-    "sbcDsfVersion": "3.6",
+    "sbcDsfVersion": "3",
 	"sbcExecutable": "usbStream.py",
 	"sbcExecutableArguments": "-file /opt/dsf/sd/sys/usbStream/usbStream.config",
 	"sbcOutputRedirected": false,
