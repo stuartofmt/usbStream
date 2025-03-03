@@ -16,6 +16,10 @@ A note on latency:  There are several layers of software between the camera and 
 
 [1]  Initial version
 
+### Version 1.0.1
+
+[1]  Changes to Exposure setting
+
 ## General Description
 
 The main capabilities include:
@@ -26,7 +30,7 @@ The main capabilities include:
 6.  Allows video size selections.
 7.  Allows video rotation.
 8.  Allows video format selection
-10. Allows exposure selection
+10. Can provide exposure control (Camera and OS dependent - see option notes)
 
 **Note that Cameras vary and may not accept all the settings described above**
 
@@ -34,6 +38,7 @@ The main capabilities include:
 
 * Python3 - will be installed into a virtual environment
 * Linux
+* v4l2 libraries
 * Certain python libraries.  The program will complain if they are missing. **In particular OpenCV needs to be V3.4 or later.**
 
 *** Note ***
@@ -66,7 +71,7 @@ On startup, the plugin looks for a configuration file.  By default this is
 It can be edited from the DWC UI by navigating to:
 system-->usbStream-->usbStream.conf
 
-### Options
+## Options
 
 
 Each option is preceded by a dash - without any space between the dash and the option name. Some options have parameters described in the square brackets.   The square brackets are NOT used in entering the options. If an option is not specified, the default used.
@@ -173,28 +178,48 @@ Example
 -framerate 30      #  Streams at 30 fps<br>
 ```
 
-#### -autoexp [number between 0 and 1]
-**Optional - Default is 0**<br>
-Generally this can be left out (default).
-Sets the auto exposure level (if supported by the camera)
-**Note that the meaning of auto exposure settings are poorly defined**
 
-Example
-```
--autoexp 0.5      # sets auto exposure to 0.5
-```
+### Exposure COntrol
 
+Exposure control varies widely between OS, Cameras, Camera Drivers, SOftware Libraries etc.
 
-**Example configuration file**
+Many cameras default to auto exposure. For most users this will be adequate.  If not two options are provided as a convenience.
 
-E.g. 1 - The most basic configuration file simply provides a port number
+#### -manexp [float]
+**Optional - Default is null**<br>
+Turn on manual exposure (if supported by the camera)
 
+#### -exposure [float]
+**Optional - Default is null**<br>
+Sets the exposure level (if -manexp has been set)
+
+**Note that the values for -manexp and -exposure can only be determined through experimentation***
+The following technical information is provided to aid the user in researching settings that may work for them.
+
+If -manexp AND -exposure are both set
+[1]  usbStream logs the original values of cv2.CAP_PROP_AUTO_EXPOSURE and cv2.CAP_PROP_EXPOSURE
+[2]  usbStream first tries to set the camera to manual mode (using the property cv2.CAP_PROP_AUTO_EXPOSURE) and then set the exposure level (using the property cv2.CAP_PROP_EXPOSURE).
+[3] on terminate - usbStream attempts to restore the original values of cv2.CAP_PROP_AUTO_EXPOSURE and cv2.CAP_PROP_EXPOSURE.  Note that the resulting values are not guaranteed to be identical because the underlying code is a bit strange.
+
+In any case, the intent is that each time usbStream starts, the exposure values are at the defaults AND the reported values give an indication of the values used to set manual mode and the exposure level 
+
+For linux based systems the following are often reported (but who knows :-)
+
+[1] A default of 0.75 (automatic) suggest that 0.25 turns on manual mode
+[2] A value of 3.0 (automatic) suggests that 1.0 turns on manual mode
+
+## Example configuration file
+
+E.g. 1
+The most basic configuration file simply provides a port number
 
 ```
 -port 8090
 ```
 
-E.g. 2 - Stream video on port 8081 rotated 180 deg using the only (default) camera at a resolution of 800x600
+E.g. 2
+Stream video on port 8081 rotated 180 deg using the only (default) camera
+at a resolution of 800x600 log level set to verbose.
 
 ```
 -port 8082
@@ -210,11 +235,14 @@ A logfile is located is located at
 
 ### Monitoring from a console
 
-The activity assoicated with usbStream can be monitored at the console using
+The activity assoicated with plugins can be monitored at the console using:
 
+`env SYSTEMD_LESS=RXMK /usr/bin/journalctl -u duetpluginservice -f
 
-There may be some error messages that look like this:
-VIDEOIO ERROR: V4L: can't open camera by index 1
+During startup of usbStream -  There may be some error messages that look like this:
+
+`VIDEOIO ERROR: V4L: can't open camera by index 1`
+
 These can be safely ignored as they are an artifact of one of the underlying libraries.
 
-Some errors in operation can be related to available memory and buffer sizes (e.g. Empty Frame Detected).  These can often be fixed by reducing the resolution of images (i.e. using the -size option) or reducing the frame rate (i.e. using the -framerate option).
+Some errors in operation can be related to available memory and buffer sizes (e.g. Empty Frame Detected).  These can often be fixed by reducing the resolution of images (i.e. using the -size option)

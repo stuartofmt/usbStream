@@ -25,7 +25,7 @@ import threading
 import logging
 import shlex
 
-usbStreamVersion = '1.0.0'
+usbStreamVersion = '1.0.1'
 
 class LoadFromFilex (argparse.Action):
     def __call__ (self, parser, namespace, values, option_string = None):
@@ -62,15 +62,17 @@ def init():
     parser.add_argument('-size', type=int, nargs=1, default=[0], help='image resolution')
     parser.add_argument('-format', type=str, nargs=1, default=['MJPG'], help='Preferred format')
     parser.add_argument('-framerate', type=int, nargs=1, default=[24], help='Frame rate')
-    parser.add_argument('-autoexp', type=int, nargs=1, default=[0], help='Auto exposure')
+    parser.add_argument('-manexp', type=float, nargs=1, default=[None], help='Auto exp - between 0.0 and 1.0')
+    parser.add_argument('-exposure', type=float, nargs=1, default=[None],help='Auto exp - between 0.0 and 1.0')
     parser.add_argument('-verbose', action='store_true', help='If omitted - limit debug messages ')
-    parser.add_argument('-#', type=str, nargs=1, default=[''], help='Comment')
+    parser.add_argument('-#', type=str, nargs=1, default=[], help='Comment')
     parser.add_argument('-logfile', type=str, nargs=1, default=['/opt/dsf/sd/sys/usbStream/usbStream.log'], help='full logfile name')
     parser.add_argument('-file', type=argparse.FileType('r'), help='file of options', action=LoadFromFilex)
+    
     args = vars(parser.parse_args())
 
     global host, port, rotate, camera, size, format, framerate, allowed_formats
-    global rotateimage, verbose, logfilename, autoexp
+    global rotateimage, verbose, logfilename, manexp, exposure
     
     host = args['host'][0]
     port = args['port'][0]
@@ -79,7 +81,8 @@ def init():
     size = abs(args['size'][0])
     format = args['format'][0]
     framerate = abs(args['framerate'][0])
-    autoexp = abs(args['autoexp'][0])
+    manexp = args['manexp'][0]
+    exposure = args['exposure'][0]
     allowed_formats = ('BGR3', 'YUY2', 'MJPG','JPEG', 'H264', 'IYUV')
     if format not in allowed_formats:
         logger.info(format + 'is not an allowed format')
@@ -96,8 +99,8 @@ def init():
                 
 class VideoStream:
     # initialize with safe defaults
-    #def __init__(self, src=0, res=[800,600,'MJPG'], frate=10, name="VideoStream"):
     def __init__(self, src=0, res=[800,600,'MJPG'], name="VideoStream"):
+        global framerate
         # initialize the video camera stream and read the first frame
         self.stream = cv2.VideoCapture(src)
         #if isinstance(src, int):  #Bypass is stream input
@@ -115,8 +118,23 @@ class VideoStream:
 
         self.grabbed, self.frame = self.stream.read() #do a dummy read
 
-        self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0) # Turn off auto exposure after camera on
-        self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, autoexp) #Try to set to requested
+        cam_res = str(self.stream.get(cv2.CAP_PROP_FRAME_WIDTH)) + ' x ' + str(self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cam_fps = self.stream.get(cv2.CAP_PROP_FPS)
+        
+        logger.debug('Camera resolution is: ' + cam_res)
+        logger.debug('Camera FPS is:' + str(cam_fps))
+        if cam_fps < framerate:
+            framerate = cam_fps
+            logger.info('FPS reset to:' + str(cam_fps))
+
+        self.manexp = self.stream.get(cv2.CAP_PROP_AUTO_EXPOSURE)
+        self.exposure = self.stream.get(cv2.CAP_PROP_EXPOSURE)
+        if manexp is not None and exposure is not None:
+            logger.info('Default Auto exposure setting is: ' + str(self.manexp))
+            logger.info('Default Exposure setting is: ' + str(self.exposure))
+            self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, manexp) # Turn off auto exposure after camera on
+            self.stream.set(cv2.CAP_PROP_EXPOSURE, exposure) #Try to set requested exposure
+        
         # initialize the thread name
         self.name = name
 
@@ -131,15 +149,19 @@ class VideoStream:
         return self
 
     def update(self):
+        global framerate
         # keep looping infinitely until the thread is stopped
         previous_time = 0
         frame_interval = 1/framerate
         while True:
             if self.stopped:
+                # Restore exposure settings
+                # change exposure before changing auto setting
+                self.stream.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
+                self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, self.manexp)
                 self.stream.release()
                 return
-            #time.sleep(1/framerate) # No need to read more often than framerate
-            # otherwise, read the next frame from the stream
+
             elapsed_time = time.time() - previous_time
             try:
                 mygrabbed, myframe = self.stream.read() # keeps the buffer clear - reduced latency
@@ -255,9 +277,9 @@ def getResolution(camera,size):
     for res in resolution:
         width = res[0]
         height = res[1]
-        logger.debug('Checking resolution: ' + str(width) + ' x ' + str(height))
+        logger.debug('Checking formats for resolution: ' + str(width) + ' x ' + str(height))
         for form in allowed_formats:
-            logger.debug('Checking format: ' + str(form))
+            logger.debug('Format: ' + str(form))
             stream = cv2.VideoCapture(int(camera))
             stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             stream.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -268,12 +290,13 @@ def getResolution(camera,size):
             cc = stream.get(cv2.CAP_PROP_FOURCC)
             camformat = "".join([chr((int(cc) >> 8 * i) & 0xFF) for i in range(4)])
             reported_resolution = [camwidth, camheight, camformat]
-            logger.debug('Reported capability ' + str(reported_resolution))
             if reported_resolution not in available_resolutions and camformat in allowed_formats:
                 available_resolutions.append(reported_resolution)
                 available_resolutions_str.append(str(camwidth) + 'x' + str(camheight) + '(' + camformat + ')')
             stream.release()
-    logger.info('The following resolutions are available from the camera: ' + '  '.join(available_resolutions_str))
+    logger.info('The following resolutions are available from the camera:')
+    for res in available_resolutions_str:
+        logger.info(res)
 
     if size > len(resolution)-1:     # Make sure the index is within bounds
         size = len(resolution)-1
@@ -394,18 +417,18 @@ def opencvsetup(camera):
 
 def createLogger():
     global logger
-    try:
-        logging.getLogger().removeHandler(logging.getLogger().handlers[0])
-        logging.getLogger().removeHandler(logging.getLogger().handlers[0])
-    except:
-        pass
+
+    # Clear out any handlers
+    print(logging.getLogger().handlers)
+    for handler in logging.getLogger().handlers:
+        logging.getLogger().removeHandler(handler)
     
     if verbose:
         myloglevel = logging.DEBUG
     else:
         myloglevel = logging.INFO
 
-    myformat = "%(asctime)s [%(levelname)s] %(message)s"
+    myformat = "usbStream - %(asctime)s [%(levelname)s] %(message)s"
     
     myhandlers = [logging.FileHandler(logfilename, mode='w', encoding='utf-8') ,
                   logging.StreamHandler(sys.stdout)
@@ -437,16 +460,11 @@ def shut_down():
 
 def quit_sigint(*args):
     logger.info('Terminating because of Ctl + C (SIGINT)')
-    quit_forcibly()
+    shut_down()
 
 def quit_sigterm(*args):
     logger.info('Terminating because of SIGTERM')
-    quit_forcibly()  
-
-def quit_forcibly():
-    logger.info('!!!!! Forced Termination !!!!!')
-    os.kill(os.getpid(), 9)  # Brutal but effective
-
+    shut_down()  
 
 def main():
 
