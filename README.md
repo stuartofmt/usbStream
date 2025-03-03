@@ -172,6 +172,7 @@ Example
 **Optional - Default is 24**<br>
 Generally this can be left at the default.
 Setting to a higher number may make latency worse.
+If the camera reposts a lower frame rate, then that framerate will be used.
 
 Example
 ```
@@ -179,7 +180,7 @@ Example
 ```
 
 
-### Exposure COntrol
+### Exposure Control
 
 Exposure control varies widely between OS, Cameras, Camera Drivers, SOftware Libraries etc.
 
