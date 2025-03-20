@@ -48,13 +48,13 @@ sudo find / -name system | grep systemd
 
 example (change this depending on the name of your unit file)
 ```
-sudo cp ./[your unit file name ].service /lib/systemd/system/[your unit file name ].service
+sudo cp ./[your unit file name ] /lib/systemd/system/[your unit file name ]
 ```
 
 - [2] change the ownership to root
 example
 ```
-sudo chown root:root /lib/systemd/system/[your unit file name].service
+sudo chown root:root /lib/systemd/system/[your unit file name]
 ```
 
 - [3]  relaod systemd daemon so that it recognizes the new file

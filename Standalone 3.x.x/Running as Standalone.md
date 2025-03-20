@@ -13,9 +13,13 @@ usbStream can be run as a standalone application.
 Some OS (e.g. Debian Bookworm) *require* python be run in virtual environments.
 In any case - It is highly recommended to use a virtual environment - for each python application.  This document assumes a virtual environment and includes brief notes on creatating one.
 
+It is suggested that this program be placed in its own folder (e.g. /home/pi/usbStream).
+
+**Copy the usbStream.py file from the latest plugin version (it is located in the dsf sub folder).**
+
 ### Create a virtual environment
 
-It is suggested that this program be placed in its own folder (e.g. /home/pi/usbStream) and the virtual environment is created in the same folder.
+The following instructions create a virtual environment in the same folder as the program.
 
 This creates a virtual environment in  `[path-to-program]/venv`.
 
