@@ -401,15 +401,16 @@ def getResolution(camera,size):
 
 def checkIP():
     #  Check to see if the requested IP and Port are available for use
+    ip_address = '0.0.0.0'
     if port != 0:
         #  Get the local ip address
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             s.connect(('10.255.255.255', 1))  # doesn't even have to be reachable
             ip_address = s.getsockname()[0]
-        except Exception:
-            ip_address = '[ip address]'
+        except Exception as e:
             logger.warning(f'''Make sure IP address {ip_address} is reachable and unique''')
+            logger.warning(f'''{e}''')
         finally:
             s.close()
 
@@ -418,16 +419,17 @@ def checkIP():
         except Exception as e:
             logger.critical(f'''Unknown error trying to open Port {port}''')
             logger.critical(f'''{e}''')
-            force_quit()  
+            force_quit(1)  
         finally:
             if sock.connect_ex((host, port)) == 0:
                 logger.critical(f'''Port {port} is already in use.''')
-                force_quit()
+                force_quit(1)
     else:
         logger.critical('No port number was provided - terminating the program')
-        force_quit()
+        force_quit(1)
+    return ip_address
 
-def ready():
+def ready(ip_address):
     logger.info('The video stream can be access from:')
     logger.info(f'''http://{ip_address}:{port}/stream''')
     logger.info('If on the same computer as the camera - you can also try the following:')
@@ -495,18 +497,12 @@ def shut_down():
         logger.info('Threads have been shutdown')
         force_quit(0) # Should not be needed but placed here just in case
 
-def force_quit(code):  # Ugly but effective.  Sometimes threads are not closing in time
-    try:
-        sys.exit(int(code))
-        logger.info('Graceful Termination Complete')
-    except:
-        logger.info('Forced Termination')
-        time.sleep(5) # Give it a chance to finish
-        try:
-            os._exit(int(code))
-        except:
-            pass
-    
+def force_quit(code):
+    # Note:  Some libraries will send warnings to stdout / std error
+    # These will display if run from console standalone
+    logger.info('Shutdown Requested')
+    sys.exit(int(code))
+ 
 def quit_sigint(*args):
     logger.info('Terminating because of Ctl + C (SIGINT)')
     shut_down()
@@ -534,29 +530,31 @@ def main():
     logger.info('Initial logfile started')
     logger.info(f'''{progName} -- {progVersion}''')
     
-    checkPythonVersion()
-    checkIP() # Check the IP and Port is available
+    checkPythonVersion() # Exit if invalid
+    ip_address = checkIP() # Exit if invalid  IP and Port
     
     camera, res = opencvsetup(camera) # May change camera number
-
-
     
     #start the camera streaming
     stream = VideoStream(int(camera), res, framerate)
     stream.start()
 
-
-
     # Start the http server
     server = ThreadingHTTPServer((host, port), StreamingHandler)
     threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
 
-    ready()
+    ready(ip_address)
 
 ###########################
 # Program  begins here
 ###########################
 
 if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
-    
-    main()
+    try:
+        main()
+    except SystemExit as e:
+        if e.code == 9999:  # Emergency Shutdown - just kill everything
+            logger.critical(f'''Forcing Termination SystemExit was {e.code}''')
+            logging.shutdown()  #Flush and close the logs
+            time.sleep(5) # Give it a chance to finish
+            os._exit(1)
