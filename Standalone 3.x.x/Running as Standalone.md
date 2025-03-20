@@ -17,9 +17,9 @@ In any case - It is highly recommended to use a virtual environment - for each p
 
 It is suggested that this program be placed in its own folder (e.g. /home/pi/usbStream) and the virtual environment is created in the same folder.
 
-This creates a virtual environment in  `<path-to-program>/venv`.
+This creates a virtual environment in  `[path-to-program]/venv`.
 
-`python -m venv --system-site-packages  <path-to-program>/venv`
+`python -m venv --system-site-packages  [path-to-program]/venv`
 
 example
 ```
@@ -30,7 +30,7 @@ python -m venv --system-site-packages  /home/pi/usbStream/venv
 
 The following libraries are needed and should be installed using the following command
 
-`<path-to-program>/venv/bin/python -m pip install --no-cache-dir --upgrade [library name]`
+`[path-to-program]/venv/bin/python -m pip install --no-cache-dir --upgrade [library name]`
 
 Libraries
 [1] opencv-python
@@ -45,15 +45,15 @@ example
 
 usbStream can be started manually using one of the following command line forms
 
+[path-to-program]/venv/bin/python [path-to-usbStream]usbStream.py [options]
 
-<path-to-program>/venv/bin/python <path-to-usbStream>usbStream.py <options>
+[options] can either be a list of individual options e.g.
 
-<options> can either be a list of individual options e.g.
-
+example
 ```
-<path-to-program>/venv/bin/python <path-to-usbStream>usbStream.py -port 8084 -camera 1
+[path-to-program]/venv/bin/python [path-to-usbStream]usbStream.py -port 8084 -camera 1
 ```
 
 or (recommended) use a configuration file
 
-<path-to-program>/venv/bin/python <path-to-usbStream>usbStream.py -file <path-to-config-file>
+[path-to-program]/venv/bin/python [path-to-usbStream]usbStream.py -file [path-to-config-file]
