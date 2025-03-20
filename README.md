@@ -4,7 +4,7 @@
 This is a simple video streamer for use with usb cameras.  It streams video in jpg format from a url.
 It is particularly useful when you want to same video feed to be consumed by more than one application.  For example a timelapse recording application and to also monitor in real time.
 
-<br>usbStream is designed to run as a Duet3d DWC plugin.<br>
+<br>usbStream is designed to run as a Duet3d DWC plugin.  It can also be run standalone<br>
 <br>The live video can be displayed in a web browser<br>
 <br>Alternatively - the httpViewer plugin can be used with DWC<br>
 
@@ -49,12 +49,6 @@ The main capabilities include:
 - the opencv method supports USB cameras on most platforms and MAY in certain cases support Raspberry Pi embedded cameras (but this is not a design goal or tested).
 It is possible to run usbStream.py as a stand-alone program (on most OS's) but capabilities may vary.
 
----
-
-Due to differences in some OS versions on the Raspberry Pi: opencv-python may not install.
-opencv_contrib_python is an alternative that may work.
-***This can be tested by replacing "opencv-python" with "opencv_contrib_python" in the plgin.json file**
-
 ### Usage
 
 **Accessing the video stream**
@@ -69,24 +63,26 @@ http://<ipaddress>:<port>/stream   #Note that /stream is required
 ### Configuration file
 
 On startup, the plugin looks for a configuration file.  By default this is
-/opt/dfs/sd/sys/usbStream/usbStream.config 
+/opt/dfs/sd/sys/usbStream/usbStream.config
 
 It can be edited from the DWC UI by navigating to:
 system-->usbStream-->usbStream.conf
 
-## Options
+There should only be one option, per line, in the configuration file.
 
+## Options
 
 Each option is preceded by a dash - without any space between the dash and the option name. Some options have parameters described in the square brackets.   The square brackets are NOT used in entering the options. If an option is not specified, the default used.
 
 #### -port [port number]
 **Mandatory** <br>
-If the selected port is already in use the program will not start
+If the selected port is already in use the program will not start.
 
 Example
 ```
 -port 8090      #Causes internal http server to start and listen on port 8090
 ```
+
 #### -camera [number]
 **Optional if only one camera available**<br>
 If there is more than one camera then the camera number needs to be specified.
@@ -119,23 +115,15 @@ If your camera does not support that resolution, the program will set the next l
 
 **List of supported resolutions:**
 
-0 -->    3280 x 2464
-
-1 -->    2048 x 1080
-
-2 -->    1920 x 1800
-
-3 -->    1640 x 1232
-
-4 -->    1280 x  720
-
-5 -->     800 x  600
-
-6 -->     720 x  480
-
-7 -->     640 x  480
-
-8 -->     320 x  240
+0 -->    3280 x 2464<br>
+1 -->    2048 x 1080<br>
+2 -->    1920 x 1800<br>
+3 -->    1640 x 1232<br>
+4 -->    1280 x  720<br>
+5 -->     800 x  600<br>
+6 -->     720 x  480<br>
+7 -->     640 x  480<br>
+8 -->     320 x  240<br>
 
 Example
 ```
@@ -151,7 +139,7 @@ The available formats are from the list below.
 
 BGR3, YUY2, MJPG, JPEG
 
-If you specify the -format  - the program will try to use that format.<br>
+If you specify the -format option, the program will try to use that format.<br>
 If your camera does not support that format, the program will select one of the available formats that are supported.
 
 **Note: Some cameras may report that it supports a format when, in fact, it does not.**  In such cases, try other settings.
@@ -174,7 +162,7 @@ Example
 **Optional - Default is 24**<br>
 Generally this can be left at the default.
 Setting to a higher number may make latency worse.
-If the camera reposts a lower frame rate, then that framerate will be used.
+If the camera reports a lower frame rate, then the lower framerate will be used.
 
 Example
 ```
@@ -191,7 +179,6 @@ Optional - the default logfile is /opt/dsf/sd/sys/usbStream/usbStream.log
 and can be accessed from DWC in the system --> usbStream folder
 
 ### Exposure Control
-
 Exposure control varies widely between OS, Cameras, Camera Drivers, SOftware Libraries etc.
 
 Many cameras default to auto exposure. For most users this will be adequate.  If not two options are provided as a convenience.
@@ -241,7 +228,7 @@ at a resolution of 800x600 log level set to verbose.
 
 ### Monitoring from a console
 
-The activity assoicated with plugins can be monitored at the console using:
+During testing / initial setup: The activity assoicated with plugins can be monitored at the console using:
 
 `env SYSTEMD_LESS=RXMK /usr/bin/journalctl -u duetpluginservice -f`
 
@@ -252,3 +239,10 @@ During startup of usbStream -  There may be some error messages that look like t
 These can be safely ignored as they are an artifact of one of the underlying libraries.
 
 Some errors in operation can be related to available memory and buffer sizes (e.g. Empty Frame Detected).  These can often be fixed by reducing the resolution of images (i.e. using the -size option)
+
+#  Troubleshooting
+
+Due to differences in some OS versions on the Raspberry Pi: opencv-python may not install.
+opencv_contrib_python is an alternative that may work.
+***This can be tested by replacing "opencv-python" with "opencv_contrib_python" in the plgin.json file**
+
