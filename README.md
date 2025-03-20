@@ -20,6 +20,9 @@ A note on latency:  There are several layers of software between the camera and 
 
 [1]  Changes to Exposure setting
 
+### Version 1.0.2 and 1.0.3
+[1]  Minor code formatting
+
 ## General Description
 
 The main capabilities include:
@@ -84,7 +87,6 @@ Example
 ```
 -port 8090      #Causes internal http server to start and listen on port 8090
 ```
-
 #### -camera [number]
 **Optional if only one camera available**<br>
 If there is more than one camera then the camera number needs to be specified.
@@ -180,6 +182,14 @@ Example
 ```
 
 
+#### -file
+The location of the configuration file. The plugin sets this automatically to 
+/opt/dsf/sd/sys/usbStream/usbStream.config.  It can be accessed from DWC in the system --> usbStream folder.
+
+#### -logfile
+Optional - the default logfile is /opt/dsf/sd/sys/usbStream/usbStream.log
+and can be accessed from DWC in the system --> usbStream folder
+
 ### Exposure Control
 
 Exposure control varies widely between OS, Cameras, Camera Drivers, SOftware Libraries etc.
@@ -229,16 +239,11 @@ at a resolution of 800x600 log level set to verbose.
 -verbose
 ```
 
-### Logfile
-A logfile is located is located at 
-
-
-
 ### Monitoring from a console
 
 The activity assoicated with plugins can be monitored at the console using:
 
-`env SYSTEMD_LESS=RXMK /usr/bin/journalctl -u duetpluginservice -f
+`env SYSTEMD_LESS=RXMK /usr/bin/journalctl -u duetpluginservice -f`
 
 During startup of usbStream -  There may be some error messages that look like this:
 

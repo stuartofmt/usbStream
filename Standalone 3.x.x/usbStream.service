@@ -5,7 +5,7 @@ After=multi-user.target
 WorkingDirectory=/home/pi/usbStream
 User=pi
 Type=idle
-ExecStart=/usr/bin/python3 /home/pi/usbStream/usbStream.py -port 8081 -rotate 180 -camera 0 -size 3
+ExecStart=/home/pi/usbStream/venv/bin/python ./usbStream.py -file ./usbStream.config
 Restart=always
 [Install]
 WantedBy=multi-user.target

@@ -25,7 +25,25 @@ import threading
 import logging
 import shlex
 
-usbStreamVersion = '1.0.1'
+global progName, progVersion
+progName = 'usbStream'
+progVersion = '1.0.3'
+# Min python version
+pythonMajor = 3
+pythonMinor = 8
+
+"""
+# Version 1.0.1
+Added better exposure control setting
+
+# Version 1.0.2
+- Always log Default Exposure info
+
+# Version 1.0.3
+- standardized string formatting
+- added check for min python version
+- standardized logging
+"""
 
 class LoadFromFilex (argparse.Action):
     def __call__ (self, parser, namespace, values, option_string = None):
@@ -44,13 +62,49 @@ class LoadFromFilex (argparse.Action):
                 parser._actions = old_actions
 
             except Exception as e:
-                logger.info('Error: ' +  str(e))
+                logger.error(f'''Error: {e}''')
                 return
+
+def setuplogging():  #Called at start
+    global logger
+    logger = logging.getLogger(__name__)
+    logger.propagate = False
+    # set logging level
+    try:
+        if verbose:
+            logger.setLevel(logging.DEBUG)
+        else:
+            logger.setLevel(logging.INFO)
+    except NameError:
+        pass
+    # Create handler for console output - file output handler is created
+    c_handler = logging.StreamHandler(sys.stdout)
+    c_format = logging.Formatter(f'''{progName} "%(asctime)s [%(levelname)s] %(message)s"''')
+    c_handler.setFormatter(c_format)
+    logger.addHandler(c_handler)
+
+def setupLogfile(): 
+    global logger
+    filehandler = None
+    for handler in logger.handlers:
+        if handler.__class__.__name__ == "FileHandler":
+            filehandler = handler
+            break # There is only ever one
+    
+    if filehandler != None:  #  Get rid of it
+        filehandler.flush()
+        filehandler.close()
+        logger.removeHandler(filehandler)
+
+    f_handler = logging.FileHandler(logfilename, mode='w', encoding='utf-8')
+    f_format = logging.Formatter(f'''"%(asctime)s [%(levelname)s] %(message)s"''')
+    f_handler.setFormatter(f_format)
+    logger.addHandler(f_handler)
 
 def init():
     # parse command line arguments
     parser = argparse.ArgumentParser(
-            description='Streaming video http server. V' + usbStreamVersion,
+            description=f'''{progName} V{progVersion}''',
             allow_abbrev=False)
     # Environment
     parser.add_argument('-host', type=str, nargs=1, default=['0.0.0.0'],
@@ -85,9 +139,9 @@ def init():
     exposure = args['exposure'][0]
     allowed_formats = ('BGR3', 'YUY2', 'MJPG','JPEG', 'H264', 'IYUV')
     if format not in allowed_formats:
-        logger.info(format + 'is not an allowed format')
+        logger.warning(f'''{format} is not an allowed format''')
         format = 'MJPG'
-        logger.info('Setting to ' + format)
+        logger.warning(f'''Setting format to {format}''')
     rotateimage = args['rotate'][0]
     if rotateimage not in (0,90,180,270):
         rotateimage = 0
@@ -113,25 +167,26 @@ class VideoStream:
             self.stream.set(cv2.CAP_PROP_FOURCC, fourcc)
             # self.stream.set(cv2.CAP_PROP_FPS, frate)
         except Exception as e:
-            logger.info('opencv error')
-            logger.info(e)
+            logger.warning('opencv error')
+            logger.warning(e)
 
         self.grabbed, self.frame = self.stream.read() #do a dummy read
 
-        cam_res = str(self.stream.get(cv2.CAP_PROP_FRAME_WIDTH)) + ' x ' + str(self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cam_res = f'''{self.stream.get(cv2.CAP_PROP_FRAME_WIDTH)} x {self.stream.get(cv2.CAP_PROP_FRAME_HEIGHT)}'''
         cam_fps = self.stream.get(cv2.CAP_PROP_FPS)
         
-        logger.debug('Camera resolution is: ' + cam_res)
-        logger.debug('Camera FPS is:' + str(cam_fps))
+        logger.debug(f'''Camera resolution is: {cam_res}''')
+        logger.debug(f'''Camera FPS is: {cam_fps}''')
         if cam_fps < framerate:
             framerate = cam_fps
-            logger.info('FPS reset to:' + str(cam_fps))
+            logger.info(f'''FPS reset to:{cam_fps}''')
 
         self.manexp = self.stream.get(cv2.CAP_PROP_AUTO_EXPOSURE)
         self.exposure = self.stream.get(cv2.CAP_PROP_EXPOSURE)
+        logger.info(f'''Default Camera Auto exposure setting is: {self.manexp}''')
+        logger.info(f'''Default Camera Exposure setting is: {self.exposure}''')
+
         if manexp is not None and exposure is not None:
-            logger.info('Default Auto exposure setting is: ' + str(self.manexp))
-            logger.info('Default Exposure setting is: ' + str(self.exposure))
             self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, manexp) # Turn off auto exposure after camera on
             self.stream.set(cv2.CAP_PROP_EXPOSURE, exposure) #Try to set requested exposure
         
@@ -160,14 +215,14 @@ class VideoStream:
                 self.stream.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
                 self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, self.manexp)
                 self.stream.release()
-                return
+                break
 
             elapsed_time = time.time() - previous_time
             try:
                 mygrabbed, myframe = self.stream.read() # keeps the buffer clear - reduced latency
             except Exception as e:
-                logger.info('Problem getting camera frame')
-                logger.info(e)
+                logger.warning('Problem getting camera frame')
+                logger.warning(e)
                 time.sleep(1)
                 continue
             if elapsed_time > frame_interval:  # updates at requested frame rate
@@ -192,13 +247,13 @@ def getFrame():
         try:
             ret, buffer = stream.read()
         except Exception as e:
-            logger.info('There was an error reading from the camera')
-            logger.info(e)
+            logger.error('There was an error reading from the camera')
+            logger.error(e)
             time.sleep(1/framerate) # Don't ask for frames any quicker than needed
             continue
         
         if ret is False or ret is None:
-            logger.info('Empty Frame Detected')
+            logger.warning('Empty Frame Detected')
             time.sleep(1/framerate) # Don't ask for frames any quicker than needed
             continue  # we do not want to update frame
         else:
@@ -209,7 +264,7 @@ def getFrame():
                 _, frame = cv2.imencode(".jpg", buffer) #Turn it into a jpeg
                 loop = False    # Done
             except Exception as e:
-                logger.info('Conversion Error' + str(e))
+                logger.error(f'''Conversion Error {e}''')
                 time.sleep(1/framerate) # Don't ask for frames any quicker than needed
     return frame        
 
@@ -244,7 +299,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
                         logger.info('Client Disconnected')
                         logger.debug(str(e))     
                     else:
-                        logger.info(str(e))
+                        logger.warning(str(e))
                     break
                 
             return
@@ -277,9 +332,9 @@ def getResolution(camera,size):
     for res in resolution:
         width = res[0]
         height = res[1]
-        logger.debug('Checking formats for resolution: ' + str(width) + ' x ' + str(height))
+        logger.debug(f'''Checking formats for resolution: {width} x {height}''')
         for form in allowed_formats:
-            logger.debug('Format: ' + str(form))
+            logger.debug(f'''Format: {form}''')
             stream = cv2.VideoCapture(int(camera))
             stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             stream.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
@@ -292,7 +347,7 @@ def getResolution(camera,size):
             reported_resolution = [camwidth, camheight, camformat]
             if reported_resolution not in available_resolutions and camformat in allowed_formats:
                 available_resolutions.append(reported_resolution)
-                available_resolutions_str.append(str(camwidth) + 'x' + str(camheight) + '(' + camformat + ')')
+                available_resolutions_str.append(f'''{camwidth} x {camheight} ({camformat})''')
             stream.release()
     logger.info('The following resolutions are available from the camera:')
     for res in available_resolutions_str:
@@ -300,7 +355,7 @@ def getResolution(camera,size):
 
     if size > len(resolution)-1:     # Make sure the index is within bounds
         size = len(resolution)-1
-        logger.info('Selected size is not available. Defaulting to size ' + resolution(size))
+        logger.info(f'''Selected size is not available. Defaulting to size {resolution(size)}''')
 
     requested_width = resolution[size][0]
     requested_height = resolution[size][1]
@@ -308,14 +363,14 @@ def getResolution(camera,size):
     #  Test to see if we have a match in resolution
     test_res = [res for res in available_resolutions if requested_width == res[0] and requested_height == res[1]]
     if test_res:
-        logger.info('The requested size: ' + str(requested_width) + 'x' + str(requested_height) + ' is available')
+        logger.info(f'''The requested size: {requested_width} x {requested_height} is available''')
         test_format = [form[2] for form in test_res if format == form[2]]
         if test_format:
-            logger.info('The requested format: ' + format + ' is available')
+            logger.info(f'''The requested format: {format} is available''')
             return requested_res
         else:
-            logger.info('The requested format: ' + format + ' is not available')
-            logger.info('Using format ' + str(test_res[0][2]))
+            logger.warning(f'''The requested format: {format} is not available''')
+            logger.warning(f'''Using format {test_res[0][2]}''')
         return test_res[0]
 
     #  Test for next available resolution
@@ -323,26 +378,24 @@ def getResolution(camera,size):
         if res[0] <= requested_width and res[1] <= requested_height:  # Get the first match
             lower_width = res[0]
             lower_height = res[1]
-            logger.info('The requested size was not available')
-            logger.info('Using a smaller size: ' + str(lower_width) + 'x' + str(lower_height))
+            logger.warning('The requested size was not available')
+            logger.warning(f'''Using a smaller size: {lower_width} x {lower_height}''')
             test_res = [res for res in available_resolutions if lower_width == res[0] and lower_height == res[1]]
             if test_res:
                 test_format = [form[2] for form in test_res if format == form[2]]
                 if test_format:
-                    logger.info('The requested format: ' + format + ' is available')
+                    logger.info(f'''The requested format: {format} is available''')
                     alternate_res = [lower_width, lower_height, format]
                     return alternate_res
                 else:
-                    logger.info('The requested format: ' + format + ' is not available')
-                    logger.info('Using an alternative format')
+                    logger.warning(f'''The requested format: {format} is not available''')
+                    logger.warning('Using an alternative format')
                     return test_res[0]
 
     # Nothing matches use lowest default value
     fallback_resolution = [resolution[len(resolution)-1][0], resolution[len(resolution)-1][1], 'YUY2']
-    logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-    logger.info('There was no resolution match available')
-    logger.info('Trying the lowest default: ' + str(fallback_resolution[0]) + 'x' + str(fallback_resolution[1]) + '(' + fallback_resolution[2] + ')')
-    logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
+    logger.warning('There was no resolution match available')
+    logger.warning(f'''Trying the lowest default: {fallback_resolution[0]} x {fallback_resolution[1]} ({fallback_resolution[2]})''')
     return fallback_resolution
 
 
@@ -355,34 +408,35 @@ def checkIP():
             s.connect(('10.255.255.255', 1))  # doesn't even have to be reachable
             ip_address = s.getsockname()[0]
         except Exception:
-            ip_address = '[ip address]'  # If not available - assume the user knows
+            ip_address = '[ip address]'
+            logger.warning(f'''Make sure IP address {ip_address} is reachable and unique''')
         finally:
             s.close()
 
         try:
             sock = socket.socket()
-            if sock.connect_ex((host, port)) == 0:
-                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                logger.info('Port ' + str(port) + ' is already in use.')
-                logger.info('Terminating the program')
-                logger.info('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-                sys.exit(2)
-
-            logger.info('The video stream can be access from:')
-            logger.info('http://' + str(ip_address) + ':' + str(port) + '/stream')
-            logger.info('If on the same computer as the camera - you can also try the following:')
-            logger.info('localhost:' + str(port) + '/stream')
-            logger.info('127.0.0.1:' + str(port) + '/stream')
+        except Exception as e:
+            logger.critical(f'''Unknown error trying to open Port {port}''')
+            logger.critical(f'''{e}''')
+            force_quit()  
         finally:
-            pass
+            if sock.connect_ex((host, port)) == 0:
+                logger.critical(f'''Port {port} is already in use.''')
+                force_quit()
     else:
-        logger.info('No port number was provided - terminating the program')
-        shut_down()
+        logger.critical('No port number was provided - terminating the program')
+        force_quit()
+
+def ready():
+    logger.info('The video stream can be access from:')
+    logger.info(f'''http://{ip_address}:{port}/stream''')
+    logger.info('If on the same computer as the camera - you can also try the following:')
+    logger.info(f'''localhost:{port}/stream''')
+    logger.info(f'''127.0.0.1:{port}/stream''')
 
 def opencvsetup(camera):
     # What cameras are available
     available_cameras = []
-    logger.info('Version: ' + usbStreamVersion)
     logger.info('Scanning for available Cameras')
     for index in range(20):  #Check up to 20 camera indexes
         stream = cv2.VideoCapture(index)
@@ -391,73 +445,68 @@ def opencvsetup(camera):
         stream.release()
 
     if len(available_cameras) < 1:
-        logger.info('No camera was found')
-        logger.info('Verify that the camera is connected and enabled')
-        logger.info('Terminating the program')
-        sys.exit(2)
+        logger.critical('No camera was found')
+        logger.critical('Verify that the camera is connected and enabled')
+        logger.critical('Terminating the program')
+        shut_down()
 
     if len(available_cameras) == 1 and camera == '':
-        logger.info('No camera was specified but one camera was found and will be used')
         camera = available_cameras[0]   # If nothing specified - try the only available camera
+        logger.warning('No camera was specified. Camera {camera} was found and will be used')
 
     if camera in available_cameras:
-        logger.info('Opening camera with identifier: ' + camera)
+        logger.info(f'''Opening camera with identifier: {camera}''')
         return camera, getResolution(camera,size)
-        #stream = setupStream(size, camera)  #  Set the camera parameters
-        #streaming = threading.Thread(target=getFrame, args=(stream,rotate,)).start()
     else:
         if camera == '':
-            logger.info('You did not specify a camera and more than one was found.')
+            logger.critical('You did not specify a camera and more than one was found.')
         else:
-            logger.info('The camera with identifier ' + camera + ' is not available')
+            logger.critical(f'''The camera with identifier {camera} is not available''')
         cameralist = ",".join(available_cameras)
-        logger.info('The following cameras were detected: ' + cameralist)
-        logger.info('Terminating the program')
-        sys.exit(2)
+        logger.critical(f'''The following cameras were detected: {cameralist}''')
+        logger.critical('Terminating the program')
+        shut_down()
 
-def createLogger():
-    global logger
-
-    # Clear out any handlers
-    print(logging.getLogger().handlers)
-    for handler in logging.getLogger().handlers:
-        logging.getLogger().removeHandler(handler)
-    
-    if verbose:
-        myloglevel = logging.DEBUG
+def checkPythonVersion():
+    logger.debug(f'''Python version is {sys.version_info.major}.{sys.version_info.minor}''')
+    if sys.version_info.major >= pythonMajor:
+        if sys.version_info.minor >= pythonMinor:
+            return
     else:
-        myloglevel = logging.INFO
-
-    myformat = "usbStream - %(asctime)s [%(levelname)s] %(message)s"
-    
-    myhandlers = [logging.FileHandler(logfilename, mode='w', encoding='utf-8') ,
-                  logging.StreamHandler(sys.stdout)
-                 ]
-               
-    logging.basicConfig(
-        level = myloglevel,
-        format = myformat,
-        handlers = myhandlers
-    )
-
-    logger = logging.getLogger('usbStream')
-    logger.info('logging started')
+        logger.critical(f'''Minimum version {pythonMajor}.{pythonMinor} is required. Exiting''' )
+        force_quit(1)
 
 def shut_down():
-    #  global streaming
     #  Shutdown the running threads
+    # Since there are only two threads runnin
+    # Program will exit when both are shutdown
+    global stream, server
+    
+    # Need to be shut down in correct order
     try:
-        stream.stop()
-        server.shutdown()
+        stream.stop()  # Needs to be shut down first
+        time.sleep(1)
+        server.shutdown() # Needs to be shut down second
     except Exception as e:
-        logger.info('There was an error shutting down')
-        logger.info(str(e))
+        logger.critical('Could not shutdown a Thread')
+        logger.critical(str(e))
     finally:
         time.sleep(1)  # give pending actions a chance to finish
-        logger.info('The program has been terminated')
-        os.kill(os.getpid(), signal.SIGTERM)  # Brutal but effective
+        logger.info('Threads have been shutdown')
+        force_quit(0) # Should not be needed but placed here just in case
 
-
+def force_quit(code):  # Ugly but effective.  Sometimes threads are not closing in time
+    try:
+        sys.exit(int(code))
+        logger.info('Graceful Termination Complete')
+    except:
+        logger.info('Forced Termination')
+        time.sleep(5) # Give it a chance to finish
+        try:
+            os._exit(int(code))
+        except:
+            pass
+    
 def quit_sigint(*args):
     logger.info('Terminating because of Ctl + C (SIGINT)')
     shut_down()
@@ -475,29 +524,34 @@ def main():
 
     # Define globals
 
-    global host, port, rotate, camera, size, framerate, streaming, stream, server, verbose
-
-    thisinstancepid = os.getpid()
+    global host, port, rotate, camera, size, framerate, stream, server, verbose
 
     init()
-    createLogger()
+
+    setuplogging()
+    setupLogfile()
+
+    logger.info('Initial logfile started')
+    logger.info(f'''{progName} -- {progVersion}''')
+    
+    checkPythonVersion()
+    checkIP() # Check the IP and Port is available
+    
+    camera, res = opencvsetup(camera) # May change camera number
 
 
     
-    camera, res = opencvsetup(camera) # May change camera number
-    # stream = VideoStream(int(camera), res, framerate)
-    stream = VideoStream(int(camera), res, framerate)
-
-    checkIP() # Check the IP and Port for http server
-
     #start the camera streaming
+    stream = VideoStream(int(camera), res, framerate)
     stream.start()
+
+
+
     # Start the http server
-    try:
-        server = ThreadingHTTPServer((host, port), StreamingHandler)
-        threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
-    except KeyboardInterrupt:
-        pass
+    server = ThreadingHTTPServer((host, port), StreamingHandler)
+    threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
+
+    ready()
 
 ###########################
 # Program  begins here
