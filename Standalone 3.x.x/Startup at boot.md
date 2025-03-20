@@ -1,45 +1,40 @@
 # Startup at boot (Standalone)
 
-The easiest way to run usbStream, standalone on linux system boot, is to use a service file and systemctl.
+## Create a systemd unit file 
+The easiest way to run usbStream, standalone on linux system boot, is to use a *unit* file and systemctl.
 
 This document briefly describes how to do this. It is accurate for Debian Bullseye.  There may be differences for other distributions - so this document is only guidance.
 
----
+Download the example unit file **usbStream.service**<br>
 
-Download the file **usbStream.service**<br>
-
-```
-
-
-Edit the example file paying particular attention to the following:
+Edit the example unit file paying particular attention to the following:
 ```
 WorkingDirectory=/home/pi/usbStream
 ```
-This should usually be the directory in which you have usbStream.py installed. 
+This should usually be the directory in which you have usbStream.py installed.
+
 ```
 User=pi
 ```
 Needs to be the usual login user
 
-The ExecStart line needs to have a fully qualified filename for the binary. Arguments can either be fully qualified or relative to WorkingDirectory.
+The ExecStart line needs to have a fully qualified filename for the binary. arguments can either be fully qualified or relative to WorkingDirectory.
 
 You should have tested the ExecStart command from the command line and be confident that it works as you want.
 
-**Example 1 using a config file**
-
+**Example 1 using a config file (recomended)**
 ```
 ExecStart=/home/pi/usbStream/venv/bin/python ./usbStream.py -file ./usbStream.config
 ```
-----
 
 **Example 2 No config file**
 ```
 ExecStart=/home/pi/usbStream/venv/bin/python /home/pi/usbStream/usbStream.py -port 8090 - camera 1 - rotate 180 -size 4
 ```
-----
 
-Determine where your systemctl files are. Usually this will be somewhere like /lib/systemd/system.<br>
-This directory will be used in the following commands.
+## Determine the systemd directory
+
+Determine where your systemctl files are. Usually this will be somewhere like /`lib/systemd/system`. This directory will be used in the following commands.
 
 If your distribution does not use this directory, and you are unsure what it is - you can narrow down the options with:
 
@@ -47,7 +42,9 @@ If your distribution does not use this directory, and you are unsure what it is 
 sudo find / -name system | grep systemd
 ```
 
-- [1]  copy the unit file (.service file) to the systemd directory 
+## Installing the unit file
+
+- [1]  copy the unit file (.service file) to the systemd directory
 
 example (change this depending on the name of your unit file)
 ```
@@ -66,24 +63,27 @@ sudo chown root:root /lib/systemd/system/[your unit file name].service
 sudo systemctl daemon-reload
 ```
 
-- [4]  start the service
+## Testing the unit file
+
+- [1]  start the service
 
 ```
-sudo systemctl start [your unit file name].service
+sudo systemctl start [your unit file name]
 ```
 
-- [5]  check for errors
+- [2]  check for errors
 
 ```
-sudo systemctl status [your unit file name].service
+sudo systemctl status [your unit file name]
 ```
 
-If there is an error - you can edit the service file (use sudo) in the /lib/systemd/system directory then repeat steps 3, 4 and 5 above.
+If there is an error - you can edit the unit file (use sudo) in the /lib/systemd/system directory then reload using step 3 above.
 
+## Start the program at each boot
 
-Finally - enable the unit file, reboot and test to see if its running
-
+Enable the unit file
 ```
-sudo systemctl enable [your unit file name].service
+sudo systemctl enable [your unit file name]
 ```
 
+reboot and test to see if its running
