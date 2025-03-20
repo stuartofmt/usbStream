@@ -33,7 +33,9 @@ The following libraries are needed and should be installed using the following c
 `[path-to-program]/venv/bin/python -m pip install --no-cache-dir --upgrade [library name]`
 
 Libraries
+
 [1] opencv-python
+
 [2] imutils"
 
 example
