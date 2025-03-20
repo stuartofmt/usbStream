@@ -49,13 +49,18 @@ usbStream can be started manually using one of the following command line forms
 
 [path-to-program]/venv/bin/python [path-to-usbStream]usbStream.py [options]
 
-[options] can either be a list of individual options e.g.
+The recomended way is to use a configuration file
+
+`[path-to-program]/venv/bin/python [path-to-usbStream]usbStream.py -file [path-to-config-file]/[config_file_name]`
 
 example
 ```
-[path-to-program]/venv/bin/python [path-to-usbStream]usbStream.py -port 8084 -camera 1
+/home/pi/usbStream/venv/bin/python /home/pi/usbStream/usbStream.py -file /home/pi/usbStream/usbStream.config
 ```
 
-or (recommended) use a configuration file
+or [options] can listed individually in the command line e.g.
 
-[path-to-program]/venv/bin/python [path-to-usbStream]usbStream.py -file [path-to-config-file]
+example
+```
+[/home/pi/usbStream/venv/bin/python /home/pi/usbStream/usbStream.py -port 8084 -camera 1
+```
