@@ -39,7 +39,7 @@ Added better exposure control setting
 # Version 1.0.2
 - Always log Default Exposure info
 
-# Version 1.0.3
+# Version 1.2.0
 - standardized string formatting
 - added check for min python version
 - standardized logging

@@ -28,7 +28,7 @@ import shlex
 
 global progName, progVersion
 progName = 'usbStream'
-progVersion = '1.0.3'
+progVersion = '1.3.0'
 # Min python version
 pythonMajor = 3
 pythonMinor = 8
@@ -40,7 +40,7 @@ Added better exposure control setting
 # Version 1.0.2
 - Always log Default Exposure info
 
-# Version 1.0.3
+# Version 1.2.0
 - standardized string formatting
 - added check for min python version
 - standardized logging

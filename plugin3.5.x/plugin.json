@@ -2,7 +2,7 @@
     "id": "usbStream",
     "name": "usbStream",
     "author": "Stuartofmt",
-    "version": "1.0.3",
+    "version": "1.2",
     "license": "GPL-2.0-or-later",
     "homepage": "https://github.com/stuartofmt/usbStream",
 	"sbcRequired": true,
