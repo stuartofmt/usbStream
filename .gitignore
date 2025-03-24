@@ -2,4 +2,4 @@
 *.config
 *.log
 plugin.zip
-*/venv/
+**/venv/
