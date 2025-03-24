@@ -1,6 +1,5 @@
 *.conf
-/shelf/
-/workspace.xml
-/.idea
-.vs/
+*.config
+*.log
 plugin.zip
+*/venv/

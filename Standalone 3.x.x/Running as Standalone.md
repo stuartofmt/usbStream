@@ -36,11 +36,15 @@ The following libraries are needed and should be installed using the following c
 
 `[path-to-program]/venv/bin/python -m pip install --no-cache-dir --upgrade [library name]`
 
+**Note that if an error occurs try the following form i.e. without `--no-cache-dir`**
+
+`[path-to-program]/venv/bin/python -m pip install --no-cache-dir --upgrade [library name]`
+
 Libraries
 
 [1] opencv-python
 
-[2] imutils"
+[2] imutils
 
 example
 ```
@@ -66,5 +70,5 @@ or [options] can listed individually in the command line e.g.
 
 example
 ```
-[/home/pi/usbStream/venv/bin/python /home/pi/usbStream/usbStream.py -port 8084 -camera 1
+/home/pi/usbStream/venv/bin/python /home/pi/usbStream/usbStream.py -port 8084 -camera 1
 ```

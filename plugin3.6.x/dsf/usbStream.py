@@ -43,6 +43,9 @@ Added better exposure control setting
 - standardized string formatting
 - added check for min python version
 - standardized logging
+
+# Version 1.2.1
+- improved camera probing e.g. WIN not reporting formats.
 """
 
 class LoadFromFilex (argparse.Action):
@@ -112,7 +115,7 @@ def init():
     parser.add_argument('-port', type=int, nargs=1, default=[8085],
                         help='Specify the port on which the server listens. Default = 0')
     parser.add_argument('-rotate', type=str, nargs=1, default=['0'], help='Can be 0,90,180,270. Default = 0')
-    parser.add_argument('-camera', type=str, nargs=1, default=[''], help='camera index.')
+    parser.add_argument('-camera', type=str, nargs=1, default=['-1'], help='camera index.')
     parser.add_argument('-size', type=int, nargs=1, default=[0], help='image resolution')
     parser.add_argument('-format', type=str, nargs=1, default=['MJPG'], help='Preferred format')
     parser.add_argument('-framerate', type=int, nargs=1, default=[24], help='Frame rate')
@@ -137,11 +140,10 @@ def init():
     framerate = abs(args['framerate'][0])
     manexp = args['manexp'][0]
     exposure = args['exposure'][0]
-    allowed_formats = ('BGR3', 'YUY2', 'MJPG','JPEG', 'H264', 'IYUV')
+    # in order more-or-less of preference
+    allowed_formats = ['MJPG',  'H264', 'YUY2', 'YUYV', 'JPEG']
     if format not in allowed_formats:
-        logger.warning(f'''{format} is not an allowed format''')
         format = 'MJPG'
-        logger.warning(f'''Setting format to {format}''')
     rotateimage = args['rotate'][0]
     if rotateimage not in (0,90,180,270):
         rotateimage = 0
@@ -159,7 +161,7 @@ class VideoStream:
         self.stream = cv2.VideoCapture(src)
         #if isinstance(src, int):  #Bypass is stream input
         try:
-            self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 0)
+            self.stream.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             self.stream.set(cv2.CAP_PROP_FRAME_WIDTH, res[0])
             self.stream.set(cv2.CAP_PROP_FRAME_HEIGHT, res[1])
             format = res[2]
@@ -314,7 +316,8 @@ class StreamingHandler(SimpleHTTPRequestHandler):
 
 
 def getResolution(camera,size):
-    resolution = []                  # Note: needs to be ordered in size to support later comparisons
+    global format
+    resolution = []  # Note: needs to be ordered in size to support later comparisons
     resolution.append([3280, 2464])
     resolution.append([2048, 1080])
     resolution.append([1920, 1800])
@@ -325,79 +328,94 @@ def getResolution(camera,size):
     resolution.append([640, 480])
     resolution.append([320, 240])
 
+    # available_resolutions = []
+    available_resolutions_formats = []
+    available_formats = []
 
-    available_resolutions = []
-    available_resolutions_str = []
-    logger.info('Scanning for available sizes and formats - be patient')
-    for res in resolution:
-        width = res[0]
-        height = res[1]
-        logger.debug(f'''Checking formats for resolution: {width} x {height}''')
-        for form in allowed_formats:
-            logger.debug(f'''Format: {form}''')
-            stream = cv2.VideoCapture(int(camera))
+    logger.info('Scanning for available resolution and formats - be patient')
+
+    stream = cv2.VideoCapture(int(camera)) # Open the camera
+
+    for form in allowed_formats:
+        # stream = cv2.VideoCapture(int(camera))
+        logger.debug(f'''Checking if format: {form} is supported''')
+        fourcc = cv2.VideoWriter_fourcc(*form)
+        stream.set(cv2.CAP_PROP_FOURCC, fourcc)
+        cc = stream.get(cv2.CAP_PROP_FOURCC)
+        camformat = int(cc).to_bytes(4, byteorder=sys.byteorder).decode()
+        if camformat not in allowed_formats:
+            camformat = 'None'
+        logger.debug(f'''Camera reported format as {camformat}''')    
+        if camformat not in available_formats:
+            available_formats.append(camformat)
+
+    for form in available_formats:
+        fourcc = cv2.VideoWriter_fourcc(*form)
+        stream.set(cv2.CAP_PROP_FOURCC, fourcc)
+        for res in resolution:
+            width = res[0]
+            height = res[1]
+            logger.debug(f'''Checking for resolution: {width} x {height} ({form})''')
             stream.set(cv2.CAP_PROP_FRAME_WIDTH, width)
             stream.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-            fourcc = cv2.VideoWriter_fourcc(*form)
-            stream.set(cv2.CAP_PROP_FOURCC, fourcc)
+            # Get what is actually reported
             camwidth = int(stream.get(cv2.CAP_PROP_FRAME_WIDTH))
             camheight = int(stream.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            cc = stream.get(cv2.CAP_PROP_FOURCC)
-            camformat = "".join([chr((int(cc) >> 8 * i) & 0xFF) for i in range(4)])
-            reported_resolution = [camwidth, camheight, camformat]
-            if reported_resolution not in available_resolutions and camformat in allowed_formats:
-                available_resolutions.append(reported_resolution)
-                available_resolutions_str.append(f'''{camwidth} x {camheight} ({camformat})''')
-            stream.release()
-    logger.info('The following resolutions are available from the camera:')
-    for res in available_resolutions_str:
-        logger.info(res)
+            reported_resolution = [camwidth,camheight,form]
+            if reported_resolution not in available_resolutions_formats:
+                available_resolutions_formats.append(reported_resolution)
+    
+    stream.release()
+    
+    logger.debug('The following resolutions were detected:')
+    for res in available_resolutions_formats:
+        logger.debug(f'''{res[0]} x {res[1]} ({res[2]})''')
 
-    if size > len(resolution)-1:     # Make sure the index is within bounds
+
+    if size > len(resolution)-1:     # Make sure the requested size is within bounds
         size = len(resolution)-1
-        logger.info(f'''Selected size is not available. Defaulting to size {resolution(size)}''')
+        logger.info(f'''Selected image size is not valid. Defaulting to size {resolution(size)}''')
 
     requested_width = resolution[size][0]
     requested_height = resolution[size][1]
-    requested_res = [requested_width, requested_height, format]
-    #  Test to see if we have a match in resolution
-    test_res = [res for res in available_resolutions if requested_width == res[0] and requested_height == res[1]]
-    if test_res:
-        logger.info(f'''The requested size: {requested_width} x {requested_height} is available''')
-        test_format = [form[2] for form in test_res if format == form[2]]
-        if test_format:
-            logger.info(f'''The requested format: {format} is available''')
-            return requested_res
-        else:
-            logger.warning(f'''The requested format: {format} is not available''')
-            logger.warning(f'''Using format {test_res[0][2]}''')
-        return test_res[0]
 
-    #  Test for next available resolution
-    for res in available_resolutions:
-        if res[0] <= requested_width and res[1] <= requested_height:  # Get the first match
+    logger.info(f'''Requested resolution and format was {requested_width} x {requested_height} ({format})''')
+    
+    
+    format_match = False
+    resolution_match = False
+
+    #check for avalable resolutions
+    format_match = False
+    format_to_use = 'None'
+    if format in available_formats:
+        format_to_use = format
+    else: #Check for alternate format
+        logger.warning('The requested format was not available')
+        for fmt in available_formats:
+            if fmt == 'None':
+                continue
+            else:
+                format_to_use = fmt
+                break 
+    
+    logger.info(f'''Format {format_to_use} will be used''')
+        
+    #  Test for best resolution match
+    for res in available_resolutions_formats:
+        if res[0] <= requested_width and res[1] <= requested_height and res[2] == format_to_use:
             lower_width = res[0]
             lower_height = res[1]
-            logger.warning('The requested size was not available')
-            logger.warning(f'''Using a smaller size: {lower_width} x {lower_height}''')
-            test_res = [res for res in available_resolutions if lower_width == res[0] and lower_height == res[1]]
-            if test_res:
-                test_format = [form[2] for form in test_res if format == form[2]]
-                if test_format:
-                    logger.info(f'''The requested format: {format} is available''')
-                    alternate_res = [lower_width, lower_height, format]
-                    return alternate_res
-                else:
-                    logger.warning(f'''The requested format: {format} is not available''')
-                    logger.warning('Using an alternative format')
-                    return test_res[0]
-
+            if res[0] != requested_width and res[1] != requested_height:
+                logger.warning('The requested resolution was not available')
+            logger.warning(f'''Using resolution and format : {lower_width} x {lower_height} ({res[2]})''')
+            return [lower_width, lower_height, format]
+        
     # Nothing matches use lowest default value
-    fallback_resolution = [resolution[len(resolution)-1][0], resolution[len(resolution)-1][1], 'YUY2']
+    fallback_resolution = [resolution[len(resolution)-1][0], resolution[len(resolution)-1][1], 'MJPG']
     logger.warning('There was no resolution match available')
-    logger.warning(f'''Trying the lowest default: {fallback_resolution[0]} x {fallback_resolution[1]} ({fallback_resolution[2]})''')
+    logger.warning(f'''Reverting to the fallback resolution: {fallback_resolution[0]} x {fallback_resolution[1]} ({fallback_resolution[2]})''')
     return fallback_resolution
-
 
 def checkIP():
     #  Check to see if the requested IP and Port are available for use
@@ -440,6 +458,7 @@ def opencvsetup(camera):
     # What cameras are available
     available_cameras = []
     logger.info('Scanning for available Cameras')
+    
     for index in range(20):  #Check up to 20 camera indexes
         stream = cv2.VideoCapture(index)
         if stream.read()[0]:  # use instead of isOpened as it confirms that iit can be read
@@ -452,15 +471,15 @@ def opencvsetup(camera):
         logger.critical('Terminating the program')
         shut_down()
 
-    if len(available_cameras) == 1 and camera == '':
+    if len(available_cameras) == 1 and camera == '-1':
         camera = available_cameras[0]   # If nothing specified - try the only available camera
-        logger.warning('No camera was specified. Camera {camera} was found and will be used')
+        logger.warning(f'''No camera was specified. Camera {camera} was found and will be used''')
 
     if camera in available_cameras:
         logger.info(f'''Opening camera with identifier: {camera}''')
         return camera, getResolution(camera,size)
     else:
-        if camera == '':
+        if camera == '-1':
             logger.critical('You did not specify a camera and more than one was found.')
         else:
             logger.critical(f'''The camera with identifier {camera} is not available''')
