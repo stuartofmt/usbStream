@@ -47,6 +47,9 @@ Added better exposure control setting
 
 # Version 1.2.1
 - improved camera probing e.g. WIN not reporting formats.
+
+# Version 1.3.0
+- changed from opencv-python to opencv-python-headless. A smaller package and no code changes needed
 """
 
 class LoadFromFilex (argparse.Action):

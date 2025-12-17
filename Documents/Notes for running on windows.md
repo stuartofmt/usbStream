@@ -2,7 +2,7 @@
 
 usbStream can be run on windows.  As with any newer Python programs, its recomended to run them in a virtual environment.
 
-See the instructions in Standalone3.x.x/Running as Standalone.md on how to setup a python virtual environment.
+See the instructions in Standalone 3.x.x/Running as Standalone.md on how to setup a python virtual environment.
 
 **Note**
 - The paths in windows are slightly different `\venv\bin\python` will be `/venv/Scripts/python`  also its best to use `/` instead of `\` in paths
