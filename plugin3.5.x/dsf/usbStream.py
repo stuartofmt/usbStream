@@ -1,4 +1,3 @@
-#!/usr/bin/python3 -u
 
 """
 The she-bang is not required if called with fully qualified paths
@@ -28,7 +27,7 @@ import shlex
 
 global progName, progVersion
 progName = 'usbStream'
-progVersion = '1.0.3'
+progVersion = '1.3.1'
 # Min python version
 pythonMajor = 3
 pythonMinor = 8
@@ -50,7 +49,12 @@ Added better exposure control setting
 
 # Version 1.3.0
 - changed from opencv-python to opencv-python-headless. A smaller package and no code changes needed
+- fixed non-critical error in sig handling
+
+# Version 1.3.1
+- cleaned up logging shutdown messages
 """
+
 
 class LoadFromFilex (argparse.Action):
     def __call__ (self, parser, namespace, values, option_string = None):
@@ -202,16 +206,17 @@ class VideoStream:
         # initialize the variable used to indicate if the thread should be stopped
         self.stopped = False
 
+        # initialize the variable used to indicate that the thread is running
+        self.running = False
+
     def start(self):
         # start the thread to read frames from the video stream
-        t = threading.Thread(target=self.update, name=self.name, args=())
-        t.daemon = True
-        t.start()
-        return self
+        threading.Thread(name=self.name, target=self.update, daemon=False).start()
 
     def update(self):
         global framerate
         # keep looping infinitely until the thread is stopped
+        self.running = True
         previous_time = 0
         frame_interval = 1/framerate
         while True:
@@ -221,6 +226,7 @@ class VideoStream:
                 self.stream.set(cv2.CAP_PROP_EXPOSURE, self.exposure)
                 self.stream.set(cv2.CAP_PROP_AUTO_EXPOSURE, self.manexp)
                 self.stream.release()
+                self.running = False
                 break
 
             elapsed_time = time.time() - previous_time
@@ -236,8 +242,6 @@ class VideoStream:
                      self.grabbed = mygrabbed
                      self.frame = myframe
 
-   
-
     def read(self):
         # return the frame most recently read
         return self.grabbed, self.frame
@@ -245,6 +249,10 @@ class VideoStream:
     def stop(self):
         # indicate that the thread should be stopped
         self.stopped = True
+
+    def status(self):
+        # Is the thread running
+        return self.running
 
 def getFrame():
     # stream and rotate are globals
@@ -313,7 +321,7 @@ class StreamingHandler(SimpleHTTPRequestHandler):
         elif self.path == '/terminate':
             self.send_response(200)
             self.end_headers()
-            shut_down()
+            force_quit(1)
         else:
             self.send_error(404)
             self.end_headers()
@@ -473,7 +481,7 @@ def opencvsetup(camera):
         logger.critical('No camera was found')
         logger.critical('Verify that the camera is connected and enabled')
         logger.critical('Terminating the program')
-        shut_down()
+        force_quit(1)
 
     if len(available_cameras) == 1 and camera == '-1':
         camera = available_cameras[0]   # If nothing specified - try the only available camera
@@ -490,7 +498,7 @@ def opencvsetup(camera):
         cameralist = ",".join(available_cameras)
         logger.critical(f'''The following cameras were detected: {cameralist}''')
         logger.critical('Terminating the program')
-        shut_down()
+        force_quit(1)
 
 def checkPythonVersion():
     logger.debug(f'''Python version is {sys.version_info.major}.{sys.version_info.minor}''')
@@ -502,48 +510,56 @@ def checkPythonVersion():
         force_quit(1)
 
 def shut_down():
-    #  Shutdown the running threads
-    # Since there are only two threads runnin
-    # Program will exit when both are shutdown
-    global stream, server
-    
+    # Shutdown the running threads
+    # Exit handled by caller
+    global stream, server  
     # Need to be shut down in correct order
     try:
-        stream.stop()  # Needs to be shut down first
-        time.sleep(1)
-        server.shutdown() # Needs to be shut down second
+        if not stream is None:
+            logger.info('Shutting down Video')
+            stream.stop()  # Needs to be shut down first
+            try:
+                while stream.status(): # Wait till any updates finish
+                    time.sleep(1)
+            except Exception as e:
+                logger.info('stream STOPPED!')
+                logger.info(e)
+        if not server is None:
+            logger.info('Shutting down http Server')
+            server.shutdown() # Needs to be shut down second
     except Exception as e:
         logger.critical('Could not shutdown a Thread')
         logger.critical(str(e))
     finally:
         time.sleep(1)  # give pending actions a chance to finish
-        logger.info('Threads have been shutdown')
-        force_quit(0) # Should not be needed but placed here just in case
+        logger.info('Exiting')
+
+def sig_handler(signum, frame):
+    signame = signal.Signals(signum).name
+    logger.info(f'Shutting down.  Recieved signal {signame} ({signum})')
+    shut_down()
+    # Dont need to do anything else since signal will kill process
 
 def force_quit(code):
     # Note:  Some libraries will send warnings to stdout / std error
     # These will display if run from console standalone
     logger.info('Shutdown Requested')
-    sys.exit(int(code))
- 
-def quit_sigint(*args):
-    logger.info('Terminating because of Ctl + C (SIGINT)')
     shut_down()
+    os._exit(code)
 
-def quit_sigterm(*args):
-    logger.info('Terminating because of SIGTERM')
-    shut_down()  
-
-def main():
+def Main():
 
     # Allow process running in background or foreground to be forcibly
     # shutdown with SIGINT (kill -2 <pid> or SIGTERM)
-    signal.signal(signal.SIGINT, quit_sigint) # Ctrl + C
-    signal.signal(signal.SIGTERM, quit_sigterm)
+    signal.signal(signal.SIGINT, sig_handler)
+    signal.signal(signal.SIGTERM, sig_handler)
 
     # Define globals
 
-    global host, port, rotate, camera, size, framerate, stream, server, verbose
+    global host, port, rotate, camera, size, framerate, stream, server, verbose, httpserver
+    stream = None
+    server = None
+    httpserver = None
 
     init()
 
@@ -559,12 +575,24 @@ def main():
     camera, res = opencvsetup(camera) # May change camera number
     
     #start the camera streaming
-    stream = VideoStream(int(camera), res, framerate)
-    stream.start()
+    try:
+        stream = VideoStream(int(camera), res, framerate)
+        stream.start()
+    except (AttributeError, NameError):
+        stream = None
 
     # Start the http server
-    server = ThreadingHTTPServer((host, port), StreamingHandler)
-    threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
+    try:
+        server = ThreadingHTTPServer((host, port), StreamingHandler)
+        httpserver = threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
+    except (AttributeError, NameError):
+        server = None
+        httpserver = None
+
+
+    if server is None or httpserver is None or stream is None:
+        logger.critical('Could not start the http server or camera stream')
+        force_quit(1)
 
     ready(ip_address)
 
@@ -574,10 +602,12 @@ def main():
 
 if __name__ == "__main__":  # Do not run anything below if the file is imported by another program
     try:
-        main()
-    except SystemExit as e:
-        if e.code == 9999:  # Emergency Shutdown - just kill everything
-            logger.critical(f'''Forcing Termination SystemExit was {e.code}''')
+        Main()
+    except SystemExit as e:  # Just in case ...
+        msg = f'''Terminated with exit code {e.code}'''
+        if logging:
             logging.shutdown()  #Flush and close the logs
-            time.sleep(5) # Give it a chance to finish
-            os._exit(1)
+            time.sleep(1) # Give it a chance to finish
+        else:
+            print(msg)
+
