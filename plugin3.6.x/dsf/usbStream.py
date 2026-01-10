@@ -27,7 +27,7 @@ import shlex
 
 global progName, progVersion
 progName = 'usbStream'
-progVersion = '1.3.0'
+progVersion = '1.3.1'
 # Min python version
 pythonMajor = 3
 pythonMinor = 8
@@ -50,7 +50,12 @@ Added better exposure control setting
 # Version 1.3.0
 - changed from opencv-python to opencv-python-headless. A smaller package and no code changes needed
 - fixed non-critical error in sig handling
+
+# Version 1.3.1
+- cleaned up logging shutdown messages
 """
+
+
 
 class LoadFromFilex (argparse.Action):
     def __call__ (self, parser, namespace, values, option_string = None):
@@ -511,17 +516,18 @@ def shut_down():
     global stream, server  
     # Need to be shut down in correct order
     try:
-        logger.info('Shutting down Video')
-        stream.stop()  # Needs to be shut down first
-        try:
-            while stream.status(): # Wait till any updates finish
-                time.sleep(1)
-        except Exception as e:
-            logger.info('stream STOPPED!')
-            logger.info(e)
-
-        logger.info('Shutting down http Server')
-        server.shutdown() # Needs to be shut down second
+        if not stream is None:
+            logger.info('Shutting down Video')
+            stream.stop()  # Needs to be shut down first
+            try:
+                while stream.status(): # Wait till any updates finish
+                    time.sleep(1)
+            except Exception as e:
+                logger.info('stream STOPPED!')
+                logger.info(e)
+        if not server is None:
+            logger.info('Shutting down http Server')
+            server.shutdown() # Needs to be shut down second
     except Exception as e:
         logger.critical('Could not shutdown a Thread')
         logger.critical(str(e))
@@ -551,7 +557,10 @@ def Main():
 
     # Define globals
 
-    global host, port, rotate, camera, size, framerate, stream, server, verbose
+    global host, port, rotate, camera, size, framerate, stream, server, verbose, httpserver
+    stream = None
+    server = None
+    httpserver = None
 
     init()
 
@@ -567,12 +576,24 @@ def Main():
     camera, res = opencvsetup(camera) # May change camera number
     
     #start the camera streaming
-    stream = VideoStream(int(camera), res, framerate)
-    stream.start()
+    try:
+        stream = VideoStream(int(camera), res, framerate)
+        stream.start()
+    except (AttributeError, NameError):
+        stream = None
 
     # Start the http server
-    server = ThreadingHTTPServer((host, port), StreamingHandler)
-    threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
+    try:
+        server = ThreadingHTTPServer((host, port), StreamingHandler)
+        httpserver = threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
+    except (AttributeError, NameError):
+        server = None
+        httpserver = None
+
+
+    if server is None or httpserver is None or stream is None:
+        logger.critical('Could not start the http server or camera stream')
+        force_quit(1)
 
     ready(ip_address)
 
