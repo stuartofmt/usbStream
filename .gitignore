@@ -1,5 +1,7 @@
 *.conf
 *.config
 *.log
+*.txt
 plugin.zip
 **/venv/
+.idea
