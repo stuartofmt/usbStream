@@ -575,24 +575,21 @@ def Main():
     camera, res = opencvsetup(camera) # May change camera number
     
     #start the camera streaming
-    try:
-        stream = VideoStream(int(camera), res, framerate)
-        stream.start()
-    except (AttributeError, NameError):
-        stream = None
+    logger.info('Starting Video Stream')
+    stream = VideoStream(int(camera), res, framerate)
+    stream.start()
+    time.sleep(2)  # Give the camera a chance to start
+
+    if stream.status() == True:
+        logger.info('Video Stream started successfully')
+    else:
+        logger.critical('Video Stream failed to start')
+        force_quit(1)
 
     # Start the http server
-    try:
-        server = ThreadingHTTPServer((host, port), StreamingHandler)
-        httpserver = threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
-    except (AttributeError, NameError):
-        server = None
-        httpserver = None
-
-
-    if server is None or httpserver is None or stream is None:
-        logger.critical('Could not start the http server or camera stream')
-        force_quit(1)
+    logger.info('Starting http Server')
+    server = ThreadingHTTPServer((host, port), StreamingHandler)
+    httpserver = threading.Thread(name='server', target=server.serve_forever, daemon=False).start()
 
     ready(ip_address)
 
