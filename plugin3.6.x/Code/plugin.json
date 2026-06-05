@@ -11,6 +11,6 @@
 	"sbcExecutableArguments": "-file /opt/dsf/sd/sys/usbStream/usbStream.config",
 	"sbcOutputRedirected": false,
     "sbcPermissions": ["networkAccess", "readSystem","writeSystem", "fileSystemAccess"],
-	"sbcPythonDependencies": ["opencv-python-headless","imutils"]
+	"sbcPythonDependencies": ["requirements.txt"]
  }
  

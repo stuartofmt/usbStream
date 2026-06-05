@@ -333,6 +333,7 @@ def getResolution(camera,size):
     resolution.append([3280, 2464])
     resolution.append([2048, 1080])
     resolution.append([1920, 1800])
+    resolution.append([1920, 1080])
     resolution.append([1640, 1232])
     resolution.append([1280, 720])
     resolution.append([800, 600])
